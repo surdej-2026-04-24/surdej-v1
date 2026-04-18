@@ -1,0 +1,24 @@
+{
+    "name": "@surdej/module-member-nosql-worker",
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx src/server.ts",
+        "build": "tsc -p tsconfig.build.json",
+        "db:generate": "prisma generate --schema=prisma/schema/member_nosql.prisma",
+        "db:migrate": "prisma migrate deploy --schema=prisma/schema/member_nosql.prisma",
+        "db:seed": "tsx src/seed/seed.ts"
+    },
+    "dependencies": {
+        "@fastify/cors": "^11.0.1",
+        "@prisma/client": "^6.9.0",
+        "@surdej/module-member-nosql-shared": "workspace:*",
+        "fastify": "^5.3.3",
+        "nats": "^2.29.3"
+    },
+    "devDependencies": {
+        "prisma": "^6.9.0",
+        "tsx": "^4.19.4",
+        "typescript": "^5.9.0-beta"
+    }
+}

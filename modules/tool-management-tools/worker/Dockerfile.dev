@@ -1,0 +1,20 @@
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# ── Install ──
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY tsconfig.json ./
+COPY modules/tool-management-tools/shared/package.json modules/tool-management-tools/shared/
+COPY modules/tool-management-tools/worker/package.json modules/tool-management-tools/worker/
+RUN pnpm install --frozen-lockfile
+
+# ── Copy source ──
+COPY modules/tool-management-tools/shared/ modules/tool-management-tools/shared/
+COPY modules/tool-management-tools/worker/ modules/tool-management-tools/worker/
+
+# ── Generate Prisma client ──
+RUN pnpm --filter @surdej/module-tool-management-tools-worker db:generate
+
+# ── Run with tsx ──
+CMD ["pnpm", "--filter", "@surdej/module-tool-management-tools-worker", "dev"]

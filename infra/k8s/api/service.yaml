@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: surdej-api
+  namespace: surdej
+  labels:
+    app: surdej-api
+spec:
+  type: ClusterIP
+  selector:
+    app: surdej-api
+  ports:
+    - port: 5001
+      targetPort: 5001
+      protocol: TCP
+      name: http

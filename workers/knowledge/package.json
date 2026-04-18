@@ -1,0 +1,22 @@
+{
+    "name": "@surdej/worker-knowledge",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc -p tsconfig.json",
+        "start": "node dist/index.js",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@surdej/core": "workspace:*",
+        "@surdej/worker-template": "workspace:*",
+        "nats": "^2.29.3"
+    },
+    "devDependencies": {
+        "tsx": "^4.19.4",
+        "typescript": "^5.9.0-beta",
+        "@types/node": "^22.15.32"
+    }
+}

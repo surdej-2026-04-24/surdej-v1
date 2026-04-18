@@ -1,0 +1,62 @@
+/* Side Panel Styles */
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0a0a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.sidepanel-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.sidepanel-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #888;
+  gap: 12px;
+}
+
+.sidepanel-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #333;
+  border-top-color: #ea0029;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.sidepanel-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #ccc;
+  gap: 8px;
+  text-align: center;
+  padding: 20px;
+}
+
+.sidepanel-error-icon {
+  font-size: 32px;
+}
+
+.sidepanel-error-detail {
+  font-size: 11px;
+  color: #666;
+}

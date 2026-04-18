@@ -1,0 +1,104 @@
+// ─────────────────────────────────────────────────────────────
+// LAKA Dispatch Worker — Segmented Prisma Schema (Nexi Domain)
+//
+// Owns: dispatch queues, tickets, routing rules, VIP customers,
+// AI classification results.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  output          = "../../node_modules/.prisma/laka-dispatch-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "laka_dispatch"]
+}
+
+/// Dispatch queue definition
+model DispatchQueue {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  name        String
+  slug        String   @unique
+  region      String             // "FI", "SE", "DK", "NO"
+  category    String             // "payments", "cards", "terminals", "disputes", "onboarding", "compliance", "general"
+  description String?
+  isActive    Boolean  @default(true)
+  priority    Int      @default(0)
+  metadata    Json?              // { sla, escalationEmail, ... }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets DispatchTicket[]
+
+  @@index([region, category])
+  @@schema("laka_dispatch")
+}
+
+/// Incoming email/ticket for dispatch
+model DispatchTicket {
+  id              String   @id @default(uuid())
+  tenantId        String?
+  externalId      String?  @unique // External ticket system ID
+  senderEmail     String
+  senderName      String?
+  subject         String
+  body            String   @db.Text
+  status          String   @default("pending") // pending, classified, routed, escalated, resolved, closed
+  region          String?            // Detected region
+  category        String?            // Detected category
+  urgency         String?            // "low", "medium", "high", "critical"
+  isVip           Boolean  @default(false)
+  classificationConfidence Float?    // 0.0–1.0
+  classificationModel String?        // AI model used
+  queueId         String?            // Assigned queue
+  routedAt        DateTime?
+  resolvedAt      DateTime?
+  metadata        Json?              // { headers, attachments, ... }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  queue DispatchQueue? @relation(fields: [queueId], references: [id])
+
+  @@index([status])
+  @@index([tenantId])
+  @@index([senderEmail])
+  @@schema("laka_dispatch")
+}
+
+/// Routing rule for queue assignment
+model RoutingRule {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  name        String
+  description String?
+  conditions  Json              // { region, category, urgency, keywords, ... }
+  targetQueue String            // Queue slug
+  priority    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, isActive])
+  @@schema("laka_dispatch")
+}
+
+/// VIP customer for priority routing
+model VipCustomer {
+  id           String   @id @default(uuid())
+  tenantId     String?
+  email        String
+  companyName  String?
+  region       String?
+  priority     Int      @default(1) // 1=standard VIP, 2=high, 3=critical
+  notes        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, email])
+  @@schema("laka_dispatch")
+}

@@ -1,0 +1,7 @@
+# ─────────────────────────────────────────────────────────────────
+# Ingress is handled via Cloudflare Tunnel (see infrastructure.yaml
+# in the root k8s/ folder). No in-cluster ingress controller needed.
+#
+# API:      https://api.YOUR_DOMAIN  → surdej-api-service:5001
+# Frontend: https://app.YOUR_DOMAIN   → surdej-frontend-service:80
+# ─────────────────────────────────────────────────────────────────

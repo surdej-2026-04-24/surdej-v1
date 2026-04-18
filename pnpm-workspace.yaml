@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+  - workers/*
+  - modules/*/*
+  - tests
+
+onlyBuiltDependencies: "[prisma,@prisma/client,@prisma/engines,esbuild]"

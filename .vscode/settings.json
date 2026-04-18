@@ -1,0 +1,5 @@
+{
+    "chat.promptFilesLocations": {
+        ".surdej/agents/workflows": true
+    }
+}

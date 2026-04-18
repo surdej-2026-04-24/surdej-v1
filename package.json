@@ -1,0 +1,69 @@
+{
+    "name": "surdej",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Surdej — generic application framework starter",
+    "type": "module",
+    "packageManager": "pnpm@10.21.0",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "dev": "pnpm --filter @surdej/frontend dev",
+        "dev:api": "docker compose up -d && docker compose logs -f api",
+        "dev:helper": "pnpm --filter @surdej/helper dev",
+        "dev:all": "docker compose up -d && pnpm dev",
+        "dev:workers": "docker compose --profile workers up -d",
+        "dev:knowledge": "pnpm --filter @surdej/worker-knowledge dev",
+        "dev:document": "pnpm --filter @surdej/worker-document dev",
+        "dev:extension": "pnpm --filter @surdej/extension dev",
+        "build": "pnpm -r build",
+        "test": "pnpm --filter @surdej/core test",
+        "test:frontend": "pnpm --filter @surdej/frontend test",
+        "test:api": "docker compose exec api pnpm test",
+        "test:all": "pnpm test && pnpm test:frontend && pnpm test:api",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "typecheck": "pnpm -r typecheck",
+        "clean": "pnpm -r exec rm -rf dist node_modules/.cache",
+        "docker:up": "docker compose up -d",
+        "docker:down": "docker compose down",
+        "docker:logs": "docker compose logs -f api",
+        "docker:build": "docker compose build api",
+        "docker:workers": "docker compose --profile workers up -d --build",
+        "cli": "node cli/index.mjs",
+        "cli:workers": "node cli/index.mjs workers",
+        "cli:db:status": "node cli/index.mjs db status",
+        "cli:topo:infra": "node cli/topology-generator.mjs infra",
+        "cli:topo:code": "node cli/topology-generator.mjs code",
+        "cli:topo:data": "node cli/topology-generator.mjs data",
+        "test:e2e": "pnpm --filter @surdej/tests test:e2e",
+        "test:integration": "pnpm --filter @surdej/tests test:integration",
+        "db:migrate": "docker compose exec api pnpm exec prisma migrate dev",
+        "db:seed": "docker compose exec api pnpm exec prisma db seed",
+        "db:gen": "docker compose exec api pnpm exec prisma generate"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.39.2",
+        "@types/node": "^22.15.0",
+        "eslint": "^9.39.2",
+        "prettier": "^3.5.3",
+        "typescript": "^5.9.0-beta",
+        "typescript-eslint": "^8.55.0"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "prisma",
+            "@prisma/client",
+            "@prisma/engines",
+            "esbuild",
+            "@swc/core"
+        ],
+        "ignoredBuiltDependencies": [
+            "@prisma/client",
+            "@prisma/engines",
+            "prisma"
+        ]
+    }
+}

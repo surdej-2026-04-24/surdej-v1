@@ -1,0 +1,23 @@
+{
+  "latest": "0.8.0",
+  "versions": [
+    {
+      "version": "0.8.0",
+      "date": "2026-03-25",
+      "filename": "surdej-extension-v0.8.0.zip",
+      "notes": "Extension build v0.8.0"
+    },
+    {
+      "version": "0.7.1",
+      "date": "2026-03-08",
+      "filename": "surdej-extension-v0.7.1.zip",
+      "notes": "Extension build v0.7.1"
+    },
+    {
+      "version": "0.7.0",
+      "date": "2026-03-08",
+      "filename": "surdej-extension-v0.7.0.zip",
+      "notes": "Core issues module, Office Add-in integration, language settings, bridge consent improvements."
+    }
+  ]
+}

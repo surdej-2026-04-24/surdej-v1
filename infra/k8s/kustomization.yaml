@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: surdej
+
+commonLabels:
+  app.kubernetes.io/part-of: surdej
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+  - workers/pdf-refinery.yaml
+  - workers/laka-dispatch.yaml
+  - workers/knowledge.yaml
+  - workers/document.yaml
+  - ingress.yaml

@@ -1,0 +1,19 @@
+# Local dev overrides — expose infra ports for native module workers
+# This file is gitignored and auto-merged by Docker Compose.
+
+# services:
+#   postgres:
+#     ports:
+#       - "127.0.0.1:5433:5432"
+
+#   minio:
+#     ports:
+#       - "127.0.0.1:9000:9000"
+
+#   nats:
+#     ports:
+#       - "127.0.0.1:4222:4222"
+
+#   document-extractor:
+#     ports:
+#       - "127.0.0.1:8091:8091"

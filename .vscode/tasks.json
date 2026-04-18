@@ -1,0 +1,219 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        // ── Bootstrap ────────────────────────────────────────────
+        {
+            "label": "Bootstrap: Install All Dependencies",
+            "type": "shell",
+            "command": "pnpm install",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Bootstrap: Install + Docker Up",
+            "dependsOn": [
+                "Bootstrap: Install All Dependencies",
+                "Docker: Start Infrastructure"
+            ],
+            "dependsOrder": "sequence",
+            "group": "build",
+            "problemMatcher": []
+        },
+
+        // ── Docker ───────────────────────────────────────────────
+        {
+            "label": "Docker: Start Infrastructure",
+            "type": "shell",
+            "command": "docker compose up -d",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker: Start All (infra + workers)",
+            "type": "shell",
+            "command": "docker compose --profile workers up -d",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker: Stop All",
+            "type": "shell",
+            "command": "docker compose --profile workers --profile monitoring down",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+
+        // ── Dev Servers ──────────────────────────────────────────
+        {
+            "label": "Dev: Surdej Frontend",
+            "type": "shell",
+            "command": "pnpm --filter @surdej/frontend dev",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "group": "dev-servers"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Dev: Surdej API (Docker)",
+            "type": "shell",
+            "command": "docker compose up -d && docker compose logs -f api",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "group": "dev-servers"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Dev: Surdej Extension",
+            "type": "shell",
+            "command": "pnpm --filter @surdej/extension dev",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "group": "dev-servers"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Dev: Surdej Helper (MCP)",
+            "type": "shell",
+            "command": "pnpm --filter @surdej/helper dev",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "group": "dev-servers"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Dev: Start Frontend + Extension",
+            "dependsOn": [
+                "Dev: Surdej Frontend",
+                "Dev: Surdej Extension"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Dev: Cloudflare Tunnel",
+            "type": "shell",
+            "command": "cloudflared tunnel run --url http://127.0.0.1:4001 YOUR_TUNNEL_NAME",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "group": "dev-servers"
+            },
+            "problemMatcher": []
+        },
+
+        // ── Database ─────────────────────────────────────────────
+        {
+            "label": "DB: Prisma Migrate",
+            "type": "shell",
+            "command": "docker compose run --rm api pnpm exec prisma migrate dev",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "DB: Prisma Generate",
+            "type": "shell",
+            "command": "docker compose run --rm api pnpm exec prisma generate",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "DB: Prisma Seed",
+            "type": "shell",
+            "command": "docker compose run --rm api pnpm exec prisma db seed",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "DB: Prisma Studio",
+            "type": "shell",
+            "command": "docker compose exec api pnpm exec prisma studio",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+
+        // ── Quality ──────────────────────────────────────────────
+        {
+            "label": "Test: All",
+            "type": "shell",
+            "command": "pnpm test && pnpm test:frontend && pnpm test:api",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Lint",
+            "type": "shell",
+            "command": "pnpm lint",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": ["$eslint-stylish"]
+        },
+        {
+            "label": "Typecheck",
+            "type": "shell",
+            "command": "pnpm typecheck",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": ["$tsc"]
+        },
+        {
+            "label": "Build: All",
+            "type": "shell",
+            "command": "pnpm build",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": ["$tsc"]
+        }
+    ]
+}

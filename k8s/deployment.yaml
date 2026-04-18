@@ -1,0 +1,387 @@
+# ─────────────────────────────────────────────────────────────────
+# Surdej API Deployment
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-api
+  namespace: surdej-v1
+  labels:
+    app: surdej-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surdej-api
+  template:
+    metadata:
+      labels:
+        app: surdej-api
+    spec:
+      containers:
+        - name: api
+          image: ${API_IMAGE}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5001
+              name: http
+          envFrom:
+            - secretRef:
+                name: surdej-api-secrets
+            - configMapRef:
+                name: surdej-api-config
+          env:
+            - name: PORT
+              value: "5001"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: surdej-api-service
+  namespace: surdej-v1
+spec:
+  selector:
+    app: surdej-api
+  ports:
+    - protocol: TCP
+      port: 5001
+      targetPort: 5001
+  type: ClusterIP
+---
+# ─────────────────────────────────────────────────────────────────
+# Surdej Frontend Deployment
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-frontend
+  namespace: surdej-v1
+  labels:
+    app: surdej-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surdej-frontend
+  template:
+    metadata:
+      labels:
+        app: surdej-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ${FRONTEND_IMAGE}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: surdej-frontend-service
+  namespace: surdej-v1
+spec:
+  selector:
+    app: surdej-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+---
+# ─────────────────────────────────────────────────────────────────
+# PDF Extractor (Python, pymupdf4llm)
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-pdf-extractor
+  namespace: surdej-v1
+  labels:
+    app: surdej-pdf-extractor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surdej-pdf-extractor
+  template:
+    metadata:
+      labels:
+        app: surdej-pdf-extractor
+    spec:
+      containers:
+        - name: extractor
+          image: ${PDF_EXTRACTOR_IMAGE}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+              name: http
+          env:
+            - name: EXTRACTOR_PORT
+              value: "8090"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 20
+            periodSeconds: 30
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: surdej-pdf-extractor-service
+  namespace: surdej-v1
+spec:
+  selector:
+    app: surdej-pdf-extractor
+  ports:
+    - protocol: TCP
+      port: 8090
+      targetPort: 8090
+  type: ClusterIP
+---
+# ─────────────────────────────────────────────────────────────────
+# Workers
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-worker-pdf-refinery
+  namespace: surdej-v1
+  labels:
+    app: surdej-worker-pdf-refinery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surdej-worker-pdf-refinery
+  template:
+    metadata:
+      labels:
+        app: surdej-worker-pdf-refinery
+    spec:
+      containers:
+        - name: worker
+          image: ${WORKER_PDF_REFINERY_IMAGE}
+          imagePullPolicy: Always
+          env:
+            - name: PDF_EXTRACTOR_URL
+              value: "http://surdej-pdf-extractor-service:8090"
+          envFrom:
+            - secretRef:
+                name: surdej-api-secrets
+            - configMapRef:
+                name: surdej-api-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "768Mi"
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-worker-knowledge
+  namespace: surdej-v1
+  labels:
+    app: surdej-worker-knowledge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surdej-worker-knowledge
+  template:
+    metadata:
+      labels:
+        app: surdej-worker-knowledge
+    spec:
+      containers:
+        - name: worker
+          image: ${WORKER_KNOWLEDGE_IMAGE}
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: surdej-api-secrets
+            - configMapRef:
+                name: surdej-api-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-worker-document
+  namespace: surdej-v1
+  labels:
+    app: surdej-worker-document
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surdej-worker-document
+  template:
+    metadata:
+      labels:
+        app: surdej-worker-document
+    spec:
+      containers:
+        - name: worker
+          image: ${WORKER_DOCUMENT_IMAGE}
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: surdej-api-secrets
+            - configMapRef:
+                name: surdej-api-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      imagePullSecrets:
+        - name: ghcr-secret
+
+---
+# ─────────────────────────────────────────────────────────────────
+# Member NoSQL Module Worker — Deployment
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-module-nosql
+  namespace: surdej-v1
+  labels:
+    app: surdej-module-nosql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surdej-module-nosql
+  template:
+    metadata:
+      labels:
+        app: surdej-module-nosql
+    spec:
+      containers:
+        - name: worker
+          image: ${MODULE_NOSQL_IMAGE}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 7006
+              name: http
+          envFrom:
+            - secretRef:
+                name: surdej-api-secrets
+            - configMapRef:
+                name: surdej-api-config
+          env:
+            - name: MODULE_PORT
+              value: "7006"
+            - name: MODULE_BASE_URL
+              value: "http://surdej-module-nosql-service.surdej-v1.svc.cluster.local:7006"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /admin/stats
+              port: 7006
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /admin/stats
+              port: 7006
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      imagePullSecrets:
+        - name: ghcr-secret
+
+---
+# ─────────────────────────────────────────────────────────────────
+# Member NoSQL Module Worker — Service
+# ─────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: surdej-module-nosql-service
+  namespace: surdej-v1
+  labels:
+    app: surdej-module-nosql
+spec:
+  selector:
+    app: surdej-module-nosql
+  ports:
+    - port: 7006
+      targetPort: 7006
+      protocol: TCP
+  type: ClusterIP

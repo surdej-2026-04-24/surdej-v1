@@ -1,0 +1,74 @@
+// ─────────────────────────────────────────────────────────────
+// Knowledge Worker — Segmented Prisma Schema
+//
+// Owns: vector chunks, indexes, duplicate detection results.
+// Core Article/Template/Training models remain in the API core schema.
+// This schema adds worker-specific processing state.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  output          = "../../node_modules/.prisma/knowledge-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "knowledge"]
+}
+
+/// Indexed chunk of article content with optional embedding vector
+model KnowledgeChunk {
+  id          String   @id @default(uuid())
+  articleId   String
+  chunkIndex  Int
+  content     String   @db.Text
+  tokenCount  Int
+  contentHash String
+  // Vector stored via pgvector extension (1536 = text-embedding-3-small)
+  // embedding Float[] — handled via raw SQL until Prisma native pgvector support
+  metadata    Json?    // { headings, position, ... }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([articleId, chunkIndex])
+  @@index([articleId])
+  @@index([contentHash])
+  @@schema("knowledge")
+}
+
+/// Indexing job state per article
+model KnowledgeIndex {
+  id                String   @id @default(uuid())
+  articleId         String   @unique
+  status            String   @default("pending") // pending, indexing, indexed, failed
+  wordCount         Int?
+  chunkCount        Int?
+  readingTimeMinutes Int?
+  contentHash       String?
+  headings          Json?    // string[]
+  errorMessage      String?
+  indexedAt          DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@schema("knowledge")
+}
+
+/// Duplicate detection result
+model DuplicateMatch {
+  id             String   @id @default(uuid())
+  sourceArticleId String
+  targetArticleId String
+  similarity     Float
+  matchType      String   // "title", "content", "both"
+  reviewedAt     DateTime?
+  dismissed      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@unique([sourceArticleId, targetArticleId])
+  @@index([sourceArticleId])
+  @@schema("knowledge")
+}

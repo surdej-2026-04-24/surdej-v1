@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: surdej-v1
+  labels:
+    app.kubernetes.io/name: surdej
+    app.kubernetes.io/part-of: surdej-v1

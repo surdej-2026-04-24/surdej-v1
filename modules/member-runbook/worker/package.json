@@ -1,0 +1,27 @@
+{
+    "name": "@surdej/module-member-runbook-worker",
+    "version": "0.1.0",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "start": "tsx src/server.ts",
+        "db:generate": "prisma generate --schema=prisma/schema/member_runbook.prisma",
+        "db:migrate": "prisma migrate dev --schema=prisma/schema/member_runbook.prisma",
+        "db:push": "prisma db push --schema=prisma/schema/member_runbook.prisma"
+    },
+    "dependencies": {
+        "@surdej/module-member-runbook-shared": "workspace:*",
+        "fastify": "^5.0.0",
+        "@fastify/cors": "^10.0.0",
+        "@fastify/multipart": "^9.0.0",
+        "nats": "^2.28.0",
+        "@prisma/client": "^6.0.0",
+        "marked": "^15.0.0"
+    },
+    "devDependencies": {
+        "prisma": "^6.0.0",
+        "tsx": "^4.19.0",
+        "typescript": "^5.7.0"
+    }
+}

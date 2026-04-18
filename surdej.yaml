@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────
+# Surdej Manifest
+# ─────────────────────────────────────────────────────────────────
+#
+# This file is the central source of truth for this Surdej instance.
+# On every release (git tag), the `version` field below is updated
+# to match the new tag.
+#
+# Replace all placeholder values (YOUR_*) with your actual settings.
+# ─────────────────────────────────────────────────────────────────
+
+version: "0.10.0"
+
+repository: "https://github.com/YOUR_ORG/surdej-v1.git"
+
+# ─────────────────────────────────────────────────────────────────
+# Production Infrastructure
+# ─────────────────────────────────────────────────────────────────
+# This section defines the mapping between this repository and the
+# required Azure infrastructure.
+#
+# These values should be synchronized with GitHub Organization Variables.
+infrastructure:
+  azure:
+    subscription_id: "YOUR_SUBSCRIPTION_ID"      # GitHub Var: AZURE_SUBSCRIPTION_ID
+    subscription_name: "YOUR_SUBSCRIPTION_NAME"   # GitHub Var: AZURE_SUBSCRIPTION_NAME
+    tenant_id: "YOUR_AZURE_TENANT_ID"             # GitHub Var: AZURE_TENANT_ID
+    region: "swedencentral"                        # GitHub Var: AZURE_REGION
+    resource_group: "YOUR_RESOURCE_GROUP"          # GitHub Var: RESOURCE_GROUP
+
+  kubernetes:
+    cluster_name: "YOUR_AKS_CLUSTER"              # GitHub Var: AKS_CLUSTER_NAME
+    resource_group: "YOUR_RESOURCE_GROUP"
+    namespace: "surdej-v1"
+    ingress: "cloudflare-tunnel"
+
+  database:
+    server_name: "YOUR_DB_SERVER.postgres.database.azure.com"  # GitHub Var: DB_SERVER_NAME
+    admin_user: "YOUR_DB_ADMIN"                                 # GitHub Var: DB_ADMIN_USER
+    resource_group: "YOUR_RESOURCE_GROUP"                        # GitHub Var: DB_RESOURCE_GROUP
+    default_database: "surdej"                                   # GitHub Var: DATABASE
+
+  key_vault:
+    name: "YOUR_KEY_VAULT"                        # GitHub Var: KEY_VAULT_NAME
+    resource_group: "YOUR_RESOURCE_GROUP"
+    secret_prefix: "surdej-v1"
+
+  dns:
+    domain: "YOUR_DOMAIN"                         # GitHub Var: DOMAIN
+    provider: "cloudflare"
+    api_host: "api.YOUR_DOMAIN"
+    frontend_host: "app.YOUR_DOMAIN"
+
+  container_registry:
+    url: "ghcr.io/YOUR_ORG"                      # GitHub Var: CONTAINER_REGISTRY
+
+  authentication:
+    provider: "microsoft-entra-id"
+    app_id: "YOUR_ENTRA_APP_ID"                   # aka Client ID
+    tenant_id: "YOUR_AZURE_TENANT_ID"
+
+# ─────────────────────────────────────────────────────────────────
+# Individual Configuration Options
+# ─────────────────────────────────────────────────────────────────
+configuration:
+  feature_flags:
+    enable_experimental: false
+    enable_debug_tools: true
+
+  api_endpoints:
+    - label: "Production"
+      url: "https://api.YOUR_DOMAIN/api"
+    - label: "Local Dev"
+      url: "http://localhost:5001/api"
+
+  integrations: {}

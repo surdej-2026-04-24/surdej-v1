@@ -1,0 +1,80 @@
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/core-issues-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["core_issues"]
+}
+
+model Issue {
+    id                   String       @id @default(uuid())
+    title                String
+    description          String?
+    status               String       @default("open")
+    priority             String       @default("medium")
+    assigneeIds          String[]
+    dueDate              DateTime?
+    archivedAt           DateTime?
+    imageAnalysisEnabled Boolean      @default(true)
+    createdAt            DateTime     @default(now())
+    updatedAt            DateTime     @updatedAt
+
+    comments             Comment[]
+    events               IssueEvent[]
+    labels               IssueLabel[]
+
+    @@schema("core_issues")
+}
+
+model Comment {
+    id        String   @id @default(uuid())
+    issueId   String
+    authorId  String
+    body      String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    issue     Issue    @relation(fields: [issueId], references: [id])
+
+    @@schema("core_issues")
+}
+
+model Label {
+    id          String       @id @default(uuid())
+    name        String       @unique
+    color       String
+    description String?
+
+    issues      IssueLabel[]
+
+    @@schema("core_issues")
+}
+
+model IssueLabel {
+    issueId String
+    labelId String
+
+    issue   Issue  @relation(fields: [issueId], references: [id])
+    label   Label  @relation(fields: [labelId], references: [id])
+
+    @@id([issueId, labelId])
+    @@schema("core_issues")
+}
+
+model IssueEvent {
+    id        String   @id @default(uuid())
+    issueId   String
+    actorId   String
+    eventType String
+    oldValue  String?
+    newValue  String?
+    createdAt DateTime @default(now())
+
+    issue     Issue    @relation(fields: [issueId], references: [id])
+
+    @@schema("core_issues")
+}

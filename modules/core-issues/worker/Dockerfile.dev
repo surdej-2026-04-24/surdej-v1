@@ -1,0 +1,17 @@
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# ── Install ──
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY tsconfig.json ./
+COPY modules/core-issues/shared/package.json modules/core-issues/shared/
+COPY modules/core-issues/worker/package.json modules/core-issues/worker/
+RUN pnpm install --frozen-lockfile
+
+# ── Copy source ──
+COPY modules/core-issues/shared/ modules/core-issues/shared/
+COPY modules/core-issues/worker/ modules/core-issues/worker/
+
+# ── Run with tsx ──
+CMD ["pnpm", "--filter", "@surdej/module-core-issues-worker", "dev"]

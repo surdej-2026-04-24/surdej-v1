@@ -1,0 +1,74 @@
+// ─────────────────────────────────────────────────────────────
+// Document Worker — Segmented Prisma Schema
+//
+// Owns: document processing jobs, text extraction results, analysis.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  output          = "../../node_modules/.prisma/document-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "document"]
+}
+
+/// Document processing job
+model DocumentJob {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  blobId      String           // FK to Blob in core schema
+  filename    String
+  mimeType    String
+  status      String   @default("pending") // pending, processing, completed, failed
+  jobType     String           // "extract-text", "ocr", "analyze", "embed"
+  priority    Int      @default(0)
+  result      Json?            // Job-specific result payload
+  errorMessage String?
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  chunks DocumentChunk[]
+
+  @@index([status, priority])
+  @@index([tenantId])
+  @@schema("document")
+}
+
+/// Extracted text chunk from a document
+model DocumentChunk {
+  id          String   @id @default(uuid())
+  jobId       String
+  pageNumber  Int?
+  chunkIndex  Int
+  content     String   @db.Text
+  tokenCount  Int
+  metadata    Json?    // { bbox, confidence, ... }
+  createdAt   DateTime @default(now())
+
+  job DocumentJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, chunkIndex])
+  @@schema("document")
+}
+
+/// AI analysis result for a document
+model DocumentAnalysis {
+  id          String   @id @default(uuid())
+  jobId       String
+  analysisType String  // "summary", "classification", "entity-extraction", "table-extraction"
+  result      Json     // Analysis-specific structured result
+  model       String?  // AI model used
+  confidence  Float?
+  createdAt   DateTime @default(now())
+
+  @@index([jobId])
+  @@schema("document")
+}

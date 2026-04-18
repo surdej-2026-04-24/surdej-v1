@@ -1,0 +1,88 @@
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/member-feedback-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["member_feedback"]
+}
+
+model Ticket {
+    id                String    @id @default(uuid())
+    ticketNumber      String    @unique
+    title             String
+    description       String?   @db.Text
+    status            String    @default("new")
+    priority          String    @default("medium")
+    category          String    @default("general")
+
+    reporterId        String
+    reporterName      String?
+    reporterEmail     String?
+    assigneeId        String?
+    assigneeName      String?
+
+    feedbackSessionId String?
+
+    aiAnalysis        Json?
+    tags              String[]  @default([])
+    customerUrl       String?
+
+    createdAt         DateTime  @default(now())
+    updatedAt         DateTime  @updatedAt
+    resolvedAt        DateTime?
+    closedAt          DateTime?
+
+    comments          TicketComment[]
+    transitions       TicketTransition[]
+
+    @@index([status])
+    @@index([priority])
+    @@index([reporterId])
+    @@index([assigneeId])
+    @@index([feedbackSessionId])
+    @@schema("member_feedback")
+}
+
+model TicketComment {
+    id          String   @id @default(uuid())
+    ticketId    String
+    authorId    String
+    authorName  String?
+    authorEmail String?
+    content     String   @db.Text
+    isInternal  Boolean  @default(false)
+    createdAt   DateTime @default(now())
+
+    ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+    @@index([ticketId])
+    @@schema("member_feedback")
+}
+
+model TicketTransition {
+    id            String   @id @default(uuid())
+    ticketId      String
+    fromStatus    String
+    toStatus      String
+    changedById   String
+    changedByName String?
+    reason        String?
+    aiAnalysis    Json?
+    createdAt     DateTime @default(now())
+
+    ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+    @@index([ticketId])
+    @@schema("member_feedback")
+}
+
+model TicketCounter {
+    id      String @id @default("default")
+    counter Int    @default(0)
+
+    @@schema("member_feedback")
+}

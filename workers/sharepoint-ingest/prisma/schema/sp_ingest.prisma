@@ -1,0 +1,141 @@
+// ─── SharePoint Ingest Worker — Prisma Schema Segment ────────
+//
+// Tracks batch ingest jobs, individual document items in the queue,
+// sync cursors, and processing history.
+//
+// PostgreSQL schema: `sp_ingest`
+
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/sp-ingest-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["sp_ingest"]
+}
+
+// ─── Batch ──────────────────────────────────────────────────────
+// A batch is a single ingest run — either triggered manually or on a cron.
+// It contains multiple queue items and tracks overall progress.
+
+model IngestBatch {
+    id           String   @id @default(uuid())
+    tenantId     String?
+    siteUrl      String            /// SharePoint site URL
+    driveId      String?           /// Document library drive ID (null = default)
+    folderPath   String?           /// Subfolder path (null = root)
+    status       String   @default("pending")
+    /// "pending" → "discovering" → "processing" → "completed" → "failed"
+
+    totalItems   Int      @default(0)  /// Total documents discovered
+    processed    Int      @default(0)
+    succeeded    Int      @default(0)
+    failed       Int      @default(0)
+    skipped      Int      @default(0)
+
+    priority     Int      @default(0)  /// Higher = processed sooner
+    strategy     String   @default("full")
+    /// "full" = crawl everything, "delta" = only changed since last sync
+
+    deltaCursor  String?            /// Graph API delta cursor for incremental sync
+    errorMessage String?
+    metadata     Json?              /// { triggeredBy, tags, filters, ... }
+
+    startedAt    DateTime?
+    completedAt  DateTime?
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    items IngestQueueItem[]
+
+    @@index([tenantId])
+    @@index([status, priority])
+    @@schema("sp_ingest")
+}
+
+// ─── Queue Item ─────────────────────────────────────────────────
+// Each document discovered in SharePoint becomes a queue item.
+// Items are processed concurrently up to the worker's concurrency limit.
+
+model IngestQueueItem {
+    id            String   @id @default(uuid())
+    batchId       String
+    batch         IngestBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+    externalId    String           /// SharePoint item/driveItem ID
+    filename      String
+    mimeType      String?
+    fileSize      Int?             /// Size in bytes
+    webUrl        String?          /// SharePoint web URL for this item
+    downloadUrl   String?          /// Ephemeral download URL (expires)
+
+    status        String  @default("queued")
+    /// "queued" → "downloading" → "processing" → "indexing" → "completed" → "failed" → "skipped"
+
+    attempts      Int     @default(0)
+    maxAttempts   Int     @default(3)
+    errorMessage  String?
+    lastAttemptAt DateTime?
+
+    /// Extracted content (stored after download + text extraction)
+    extractedText String? @db.Text
+    contentHash   String?          /// SHA-256 of extracted text
+    pageCount     Int?
+    wordCount     Int?
+
+    /// Where the result was stored
+    blobId        String?          /// FK to Blob in core schema (if file is stored)
+    articleId     String?          /// FK to Article if imported to knowledge
+
+    metadata      Json?            /// { lastModifiedDateTime, createdBy, parentPath, ... }
+
+    startedAt     DateTime?
+    completedAt   DateTime?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    @@unique([batchId, externalId])
+    @@index([status])
+    @@index([batchId, status])
+    @@index([contentHash])
+    @@schema("sp_ingest")
+}
+
+// ─── Sync Cursor ────────────────────────────────────────────────
+// Persists the delta cursor per site+drive so incremental syncs
+// only fetch changed documents since the last successful run.
+
+model SpSyncCursor {
+    id         String   @id @default(uuid())
+    tenantId   String?
+    siteUrl    String
+    driveId    String   @default("root")
+    cursor     String   @db.Text     /// Microsoft Graph delta link/token
+    syncedAt   DateTime
+    itemCount  Int      @default(0)  /// Items returned in this delta
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    @@unique([tenantId, siteUrl, driveId])
+    @@schema("sp_ingest")
+}
+
+// ─── Processing Log ─────────────────────────────────────────────
+// Audit log for important events during ingest.
+
+model IngestLog {
+    id        String   @id @default(uuid())
+    batchId   String?
+    itemId    String?
+    level     String   @default("info")  /// "info" | "warn" | "error"
+    message   String
+    details   Json?
+    createdAt DateTime @default(now())
+
+    @@index([batchId])
+    @@index([level])
+    @@schema("sp_ingest")
+}

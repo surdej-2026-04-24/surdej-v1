@@ -1,0 +1,45 @@
+# ──────────────────────────────────────────────
+# Worker Deployments — one file per domain worker
+# All workers share the same structure
+# ──────────────────────────────────────────────
+
+# ── PDF Refinery Worker ──
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-pdf-refinery
+  namespace: surdej
+  labels:
+    app: worker-pdf-refinery
+    app.kubernetes.io/name: worker-pdf-refinery
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-pdf-refinery
+  template:
+    metadata:
+      labels:
+        app: worker-pdf-refinery
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/surdej/surdej-v1/worker-pdf-refinery:latest
+          env:
+            - name: NATS_URL
+              value: "nats://nats.surdej.svc.cluster.local:4222"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: surdej-secrets
+                  key: DATABASE_URL
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

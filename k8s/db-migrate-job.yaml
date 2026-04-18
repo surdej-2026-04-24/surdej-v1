@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: surdej-db-migrate-${COMMIT_SHA}
+  namespace: surdej-v1
+  labels:
+    app: surdej-api
+    job-type: db-migrate
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: surdej-api
+        job-type: db-migrate
+    spec:
+      containers:
+        - name: db-migrate
+          image: ${API_IMAGE}
+          imagePullPolicy: Always
+          command: ["npx", "prisma", "migrate", "deploy"]
+          envFrom:
+            - secretRef:
+                name: surdej-api-secrets
+            - configMapRef:
+                name: surdej-api-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      imagePullSecrets:
+        - name: ghcr-secret
+      restartPolicy: Never

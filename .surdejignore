@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────
+# .surdejignore
+# ─────────────────────────────────────────────────────────────────
+#
+# Lists files and directories to EXCLUDE when deriving a new
+# project from this Surdej instance (e.g. surdej-v1 → surdej-test-X).
+#
+# Syntax follows .gitignore conventions:
+#   - Blank lines and lines starting with # are ignored
+#   - Standard glob patterns work (*, ?, [abc])
+#   - A leading / anchors to the repo root
+#   - A trailing / matches directories only
+#   - A leading ! negates a pattern (re-include)
+#
+# When a sync or copy tool processes this repo, it should read
+# this file and skip anything matched — similar to how rsync
+# reads --exclude-from or how docker uses .dockerignore.
+#
+# ─────────────────────────────────────────────────────────────────
+
+# ── Instance-specific client data ────────────────────────────────
+# Each derived project has its own client folder (e.g. .myproject)
+# These must NOT carry over to new instances.
+/# (removed)
+
+# ── Instance-specific seed scripts ──────────────────────────────
+# The client-specific seed is kept inside the client folder above,
+# but a working copy may exist in the API prisma dir.
+/apps/api/prisma/seed-example.ts
+
+# ── Local environment configuration ─────────────────────────────
+# Each instance generates its own .env from surdej.yaml
+/.env
+/.env.local
+/.env.*.local
+
+# ── Build artifacts & dependencies ───────────────────────────────
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# ── IDE / editor state ───────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS files ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Docker volumes & data ────────────────────────────────────────
+/data/
+/postgres-data/

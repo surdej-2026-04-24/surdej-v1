@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-frontend
+  namespace: surdej
+  labels:
+    app: surdej-frontend
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: surdej-frontend
+  template:
+    metadata:
+      labels:
+        app: surdej-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/surdej/surdej-v1/frontend:latest
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30

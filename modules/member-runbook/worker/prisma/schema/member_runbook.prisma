@@ -1,0 +1,75 @@
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/member-runbook-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["member_runbook"]
+}
+
+// ─── Runbooks ───────────────────────────────────────────────────
+// A runbook is a guided AI agent workflow/prompt that can be
+// printed as a folded A4 flyer. Naming convention:
+//   /surdej-*  → Platform/framework prompts
+//   /<tenant>-* → Tenant-specific prompts
+
+model Runbook {
+    id              String   @id @default(uuid())
+    tenantId        String?
+    slug            String   @unique           // e.g. "surdej-init", "red-reprocess"
+    prefix          String                      // "surdej" or "red" (or custom)
+    title           String                      // Display title: "Den Første Ælte"
+    subtitle        String?                     // "AI Arbejdsprocesser"
+    description     String?  @db.Text          // Short description for cards/listings
+    content         String   @db.Text          // Full markdown content of the runbook
+    heroImagePath   String?                     // Blob storage key for front cover image
+    insideImagePath String?                     // Blob storage key for inside panel image
+    category        String   @default("workflow") // "workflow", "guide", "reference"
+    tags            String[] @default([])       // Purpose tags: ["platform", "setup", "daily"]
+    status          String   @default("draft")  // "draft", "published", "archived"
+    version         String   @default("1.0.0")
+    authorId        String?
+    flyerLayoutId   String?                     // FK → FlyerLayout (default layout for this runbook)
+    metadata        Json?                       // { steps[], quote, architectureDiagram }
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+    deletedAt       DateTime?
+
+    flyerLayout FlyerLayout? @relation(fields: [flyerLayoutId], references: [id])
+
+    @@index([tenantId])
+    @@index([prefix])
+    @@index([status])
+    @@schema("member_runbook")
+}
+
+// ─── Flyer Layouts ──────────────────────────────────────────────
+// Each layout defines visual identity for a business unit's flyers.
+// Pre-seeded: "Nordic Kitchen" (Happy Mates)
+
+model FlyerLayout {
+    id              String   @id @default(uuid())
+    tenantId        String?
+    name            String                      // "Happy Mates Nordic Kitchen"
+    slug            String   @unique           // "happy-mates-nordic"
+    description     String?
+    scope           String   @default("common") // "common" or "business-unit"
+    businessUnit    String?                     // null=common, "happy-mates"
+    backCoverConfig Json                        // { logo, name, role, bio, contact, website, csrText }
+    frontCoverConfig Json                       // { overlayGradient, titleFont, subtitleStyle }
+    insideConfig    Json                        // { leftBg, rightBg, accentColor, quoteStyle }
+    colorPalette    Json                        // { primary, secondary, accent, background, text }
+    typography      Json?                       // { headingFont, bodyFont, ... }
+    isDefault       Boolean  @default(false)
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+    deletedAt       DateTime?
+
+    runbooks Runbook[]
+
+    @@index([businessUnit])
+    @@schema("member_runbook")
+}

@@ -1,0 +1,24 @@
+# Surdej Monitoring — Prometheus Configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Enable remote write receiver so OTel Collector can push metrics
+remote_write: []
+
+scrape_configs:
+  - job_name: "surdej-api"
+    static_configs:
+      - targets: ["api:5001"]
+    metrics_path: "/api/metrics"
+    scheme: http
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "nats"
+    static_configs:
+      - targets: ["nats:8222"]
+    metrics_path: "/varz"
+    scheme: http

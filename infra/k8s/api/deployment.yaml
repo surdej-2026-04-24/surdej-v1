@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surdej-api
+  namespace: surdej
+  labels:
+    app: surdej-api
+    app.kubernetes.io/name: api
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: surdej-api
+  template:
+    metadata:
+      labels:
+        app: surdej-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/surdej/surdej-v1/api:latest
+          ports:
+            - containerPort: 5001
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "5001"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: NODE_ENV
+              value: "production"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: surdej-secrets
+                  key: DATABASE_URL
+            - name: NATS_URL
+              value: "nats://nats.surdej.svc.cluster.local:4222"
+            - name: AUTH_PROVIDER
+              value: "entra"
+            - name: CORS_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: surdej-config
+                  key: CORS_ORIGIN
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 30

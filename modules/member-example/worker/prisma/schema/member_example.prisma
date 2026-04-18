@@ -1,0 +1,52 @@
+// ─────────────────────────────────────────────────────────────
+// Module: member-example — Segmented Prisma Schema
+//
+// PostgreSQL schema: "member_example"
+// Convention: module name with hyphens replaced by underscores.
+//
+// Each module worker owns its own Prisma schema segment,
+// targeting the same PostgreSQL instance as core but isolated
+// in its own schema namespace.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  output          = "../../node_modules/.prisma/member-example-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "member_example"]
+}
+
+/// Example domain entity managed by the member-example module
+model ExampleItem {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  name        String
+  description String?  @db.Text
+  status      String   @default("draft") // draft, active, archived
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@schema("member_example")
+}
+
+/// Audit log for module actions
+model ExampleAuditLog {
+  id        String   @id @default(uuid())
+  itemId    String
+  action    String   // created, updated, deleted, status_changed
+  actor     String?  // user ID or system
+  diff      Json?    // what changed
+  createdAt DateTime @default(now())
+
+  @@index([itemId])
+  @@index([createdAt])
+  @@schema("member_example")
+}

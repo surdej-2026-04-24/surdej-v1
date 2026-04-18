@@ -1,0 +1,1057 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [vector, uuidOssp(map: "uuid-ossp")]
+}
+
+// ─── Tenants ───
+
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  logoUrl     String?
+  backgroundUrl String?
+  metadata    Json?    // { industry, locale, timezone, ... }
+  isDemo      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?                      // soft-delete: non-null = archived
+
+  users              User[]
+  skins              Skin[]
+  articles           Article[]
+  templates          Template[]
+  trainingModules    TrainingModule[]
+  aiConversations    AiConversation[]
+  feedbackSessions   FeedbackSession[]
+  workerRegistrations WorkerRegistration[]
+  blobs              Blob[]
+  blobImages         BlobImage[]
+  documentChunks     DocumentChunk[]
+  sessions           Session[]
+  mcpServers         McpServerConfig[]
+  virtualPages       VirtualPage[]
+
+  // ─── ACL ───
+  tenantRoles       TenantRole[]
+  userTenants       UserTenant[]
+  rolePermissions   RolePermission[]
+  tableAccessRules  TableAccessRule[]
+  auditLogs         AuditLog[]
+  teams             Team[]
+  accessPolicies    AccessPolicy[]
+  fieldMaskRules    FieldMaskRule[]
+  
+  // ─── Auth Configuration ───
+  domains           TenantDomain[]
+  authProviders     AuthProvider[]
+
+  // ─── Bridge Consent ───
+  bridgeConsents    BridgeConsentTenant[]
+  bridgeUserConsents BridgeConsentUser[]
+
+  // ─── Telemetry ───
+  aiUsageLogs       AiUsageLog[]
+  apiRequestLogs    ApiRequestLog[]
+  jobs              Job[]
+
+  // ─── Key/Value Store ───
+  keyValueStore     KeyValueStore[]
+
+  // ─── Mixin / Iframe Tools ───
+  mixinKeyValues    MixinKeyValue[]
+  iframeTools       IframeTool[]
+}
+
+model TenantDomain {
+  id        String   @id @default(uuid())
+  tenantId  String
+  domain    String   // e.g. "acme.com"
+  isPrimary Boolean  @default(false)
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, domain])
+}
+
+model AuthProvider {
+  id           String   @id @default(uuid())
+  tenantId     String
+  type         String   // "google", "github", "entra"
+  clientId     String?
+  clientSecret String?  // Store encrypted!
+  connectionId String?  // Specific to provider (e.g. Auth0 connection, or creating a unique callback path)
+  isEnabled    Boolean  @default(true)
+  metadata     Json?    // Provider-specific config
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@unique([tenantId, type])
+}
+
+// ─── Users & Auth ───
+
+model User {
+  id            String   @id @default(uuid())
+  tenantId      String?            // DEPRECATED: use UserTenant instead (kept for migration)
+  email         String   @unique
+  name          String?
+  displayName   String?
+  avatarUrl     String?
+  role          Role     @default(MEMBER)  // DEPRECATED: use UserTenant.roleId instead
+  externalId    String?  @unique // Entra ID object ID
+  isDemoUser    Boolean  @default(false)
+  preferences   Json?    // { businessArea?: string, ... }
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  tenant          Tenant?  @relation(fields: [tenantId], references: [id])
+  sessions        Session[]
+
+  @@index([tenantId])
+  aiConversations AiConversation[]
+  feedbackSessions FeedbackSession[]
+  skinPreferences UserSkinPreference[]
+  articles        Article[]        @relation("UserArticles")
+  learnerProgress LearnerProgress[]
+
+  // ─── ACL ───
+  userTenants     UserTenant[]
+  auditLogs       AuditLog[]
+  teamMemberships TeamMember[]
+  aiUsageLogs     AiUsageLog[]
+  apiRequestLogs  ApiRequestLog[]
+  uploadedBlobs   Blob[] @relation("UserBlobs")
+  jobs            Job[]
+  featureOverrides FeatureUserOverride[]
+
+  // ─── Bridge Consent ───
+  bridgeConsents  BridgeConsentUser[]
+
+  // ─── Key/Value Store ───
+  keyValueEntries KeyValueStore[] @relation("KeyValueStoreUser")
+
+  // ─── Mixin KV ───
+  mixinKeyValues  MixinKeyValue[]
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  SESSION_MASTER
+  MEMBER
+  BOOK_KEEPER
+}
+
+// ─── ACL: Roles & Permissions ───
+
+model TenantRole {
+  id          String   @id @default(uuid())
+  tenantId    String?              // null = built-in / global role
+  name        String               // e.g. "Admin", "Editor", "Viewer"
+  slug        String               // e.g. "admin", "editor", "viewer"
+  description String?
+  isBuiltIn   Boolean  @default(false)
+  priority    Int      @default(0) // higher = more privileged
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant           Tenant?          @relation(fields: [tenantId], references: [id])
+  permissions      RolePermission[]
+  userTenants      UserTenant[]
+  accessPolicies   AccessPolicy[]
+  fieldMaskRules   FieldMaskRule[]
+  tableAccessRules TableAccessRule[]
+
+  @@unique([tenantId, slug])
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  resource    String               // e.g. "articles", "users", "database"
+  action      String               // e.g. "read", "write", "delete", "manage"
+  description String?
+  isBuiltIn   Boolean  @default(true)
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  tenantId     String?              // null = global grant; set = tenant-specific override
+  granted      Boolean  @default(true)  // false = explicitly denied
+
+  role       TenantRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  tenant     Tenant?    @relation(fields: [tenantId], references: [id])
+
+  @@unique([roleId, permissionId, tenantId])
+}
+
+model UserTenant {
+  id        String   @id @default(uuid())
+  userId    String
+  tenantId  String
+  roleId    String
+  isDefault Boolean  @default(false)  // user's default tenant on login
+  joinedAt  DateTime @default(now())
+  removedAt DateTime?              // soft-remove from tenant
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   TenantRole @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, tenantId])
+}
+
+// ─── Table-Level Access Control ───
+
+model TableAccessRule {
+  id         String   @id @default(uuid())
+  tenantId   String
+  roleId     String               // FK → TenantRole
+  schema     String   @default("public")
+  tableName  String               // "*" = all tables in schema
+  canRead    Boolean  @default(false)
+  canWrite   Boolean  @default(false)
+  canDelete  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   TenantRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, roleId, schema, tableName])
+}
+
+// ─── Teams & Record-Level Security ───
+
+model Team {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  slug        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members  TeamMember[]
+  articles Article[]
+
+  @@unique([tenantId, slug])
+}
+
+model TeamMember {
+  id       String   @id @default(uuid())
+  teamId   String
+  userId   String
+  role     TeamRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+enum TeamRole {
+  LEAD
+  MEMBER
+  VIEWER
+}
+
+// ─── Access Policies ───
+
+model AccessPolicy {
+  id          String       @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  resource    String           // "articles", "templates", etc.
+  roleId      String?          // null = applies to all roles
+  conditions  Json             // policy conditions (JSON expression tree)
+  effect      PolicyEffect @default(ALLOW)
+  priority    Int          @default(0)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   TenantRole? @relation(fields: [roleId], references: [id])
+
+  @@index([tenantId, resource])
+}
+
+enum PolicyEffect {
+  ALLOW
+  DENY
+}
+
+// ─── Field-Level Masking ───
+
+model FieldMaskRule {
+  id         String   @id @default(uuid())
+  tenantId   String
+  roleId     String?              // null = applies to all roles
+  resource   String               // model name: "User", "Article", etc.
+  fieldName  String               // e.g. "email", "externalId"
+  maskType   MaskType @default(HIDE)
+  createdAt  DateTime @default(now())
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   TenantRole? @relation(fields: [roleId], references: [id])
+
+  @@unique([tenantId, roleId, resource, fieldName])
+}
+
+enum MaskType {
+  HIDE
+  REDACT
+  PARTIAL
+  HASH
+}
+
+// ─── Audit Trail ───
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  tenantId   String?               // null for platform-level actions
+  actorId    String                // user who performed the action
+  actorType  ActorType @default(USER)
+  action     String                // e.g. "role.assign", "policy.create"
+  resource   String                // e.g. "UserTenant", "TenantRole"
+  resourceId String?               // ID of affected resource
+  details    Json?                 // before/after snapshot
+  ipAddress  String?
+  userAgent  String?
+  timestamp  DateTime  @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  actor  User    @relation(fields: [actorId], references: [id])
+
+  @@index([tenantId, timestamp])
+  @@index([actorId, timestamp])
+  @@index([resource, resourceId])
+}
+
+enum ActorType {
+  USER
+  SERVICE_ACCOUNT
+  API_KEY
+  SYSTEM
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  tenantId  String?              // Active tenant context for this session
+  token     String   @unique
+  provider  String   @default("local") // e.g. "entra", "local", "demo"
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  // Super-admin impersonation
+  impersonatedTenantId String?
+  impersonatedAt       DateTime?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+}
+
+// ─── Feature Flags ───
+
+model FeatureFlag {
+  id               String   @id @default(uuid())
+  featureId        String   @unique // e.g. "topology-viewer"
+  title            String
+  description      String?
+  ring             Int      @default(1) // 1=Internal, 2=Beta, 3=Preview, 4=Stable
+  enabledByDefault Boolean  @default(true)
+  category         String?
+  documentationUrl String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  userOverrides    FeatureUserOverride[]
+  roleOverrides    FeatureRoleOverride[]
+}
+
+// Per-user feature override — allows targeting specific users for specific features/rings
+model FeatureUserOverride {
+  id          String   @id @default(uuid())
+  featureId   String   // FK to FeatureFlag.featureId
+  userId      String   // FK to User.id
+  enabled     Boolean  @default(true)     // explicit enable/disable
+  ringOverride Int?    // optional: override the ring level for this user (e.g. grant Ring 1 access)
+  grantedBy   String?  // who assigned this override
+  reason      String?  // optional note
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  feature     FeatureFlag @relation(fields: [featureId], references: [featureId], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([featureId, userId])
+  @@index([userId])
+  @@index([featureId])
+}
+
+// Per-role feature override — allows targeting entire roles for features/rings
+model FeatureRoleOverride {
+  id           String   @id @default(uuid())
+  featureId    String   // FK to FeatureFlag.featureId
+  role         String   // Role enum value (SUPER_ADMIN, ADMIN, etc) or TenantRole slug
+  enabled      Boolean  @default(true)
+  ringOverride Int?     // override the ring level for users with this role
+  grantedBy    String?  // who assigned this override
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  feature      FeatureFlag @relation(fields: [featureId], references: [featureId], onDelete: Cascade)
+
+  @@unique([featureId, role])
+  @@index([role])
+  @@index([featureId])
+}
+
+// ─── Skins ───
+
+model Skin {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  name        String
+  description String?
+  isBuiltIn   Boolean  @default(false)
+  createdBy   String?
+  branding    Json     // { appName, logo, primaryColor, fontFamily }
+  sidebar     Json     // ordered list of { commandId, group }
+  activityBar Json?    // ordered list of { id, label, icon, path } for workspace layouts
+  theme       Json?    // { defaultMode: "light" | "dark" }
+  homepageConfig Json? // Persisted homepage layout configuration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  preferences UserSkinPreference[]
+  virtualPages VirtualPage[]
+}
+
+// ─── Virtual Pages ───
+
+model VirtualPage {
+  id          String   @id @default(uuid())
+  skinId      String
+  tenantId    String?
+  name        String
+  slug        String
+  description String?
+  source      String   @db.Text
+  compiled    String?  @db.Text
+  compiledAt  DateTime?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  skin   Skin    @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@unique([skinId, slug])
+}
+
+model UserSkinPreference {
+  id          String   @id @default(uuid())
+  userId      String
+  skinId      String
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(false)
+  customOrder Json?    // user-level sidebar order overrides
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skin Skin @relation(fields: [skinId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skinId])
+}
+
+// ─── AI ───
+
+model AiConversation {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  userId    String
+  title     String?
+  model     String   @default("gpt-4o")
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  tenant   Tenant?     @relation(fields: [tenantId], references: [id])
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+}
+
+model AiMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String   // "user", "assistant", "system"
+  content        String
+  model          String?
+  tokenCount     Int?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  deletedAt      DateTime?
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model AiUsageLog {
+  id            String   @id @default(uuid())
+  userId        String?
+  model         String
+  provider      String   // "azure", "openai", "anthropic"
+  inputTokens   Int
+  outputTokens  Int
+  totalTokens   Int
+  costUsd       Float?
+  operation     String   // "chat", "embedding", "rag"
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+
+  user   User?   @relation(fields: [userId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  tenantId String?
+  
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ApiRequestLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  userId    String?
+  method    String
+  path      String
+  status    Int
+  duration  Int      // ms
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ─── Feedback Sessions ───
+
+model FeedbackSession {
+  id            String    @id @default(uuid())
+  tenantId      String?
+  userId        String
+  title         String
+  description   String?
+  status        String    @default("active")  // active, paused, completed
+  startUrl      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  navigationEntries FeedbackNavigation[]
+  screenshots       FeedbackScreenshot[]
+  recordings        FeedbackRecording[]
+  chatTranscripts   FeedbackChatTranscript[]
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model FeedbackNavigation {
+  id         String   @id @default(uuid())
+  sessionId  String
+  url        String
+  title      String
+  duration   Float?   // seconds on this page
+  createdAt  DateTime @default(now())
+
+  session FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model FeedbackScreenshot {
+  id         String   @id @default(uuid())
+  sessionId  String
+  url        String   // page URL where screenshot was taken
+  blobPath   String   // MinIO storage key
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  session FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model FeedbackRecording {
+  id         String   @id @default(uuid())
+  sessionId  String
+  type       String   // "voice" | "video"
+  blobPath   String   // MinIO storage key
+  duration   Float    // seconds
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  session FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model FeedbackChatTranscript {
+  id                String   @id @default(uuid())
+  sessionId         String
+  conversationId    String   // links to AiConversation.id
+  conversationTitle String?
+  model             String
+  messages          Json     // FeedbackChatMessage[]
+  messageCount      Int
+  url               String
+  createdAt         DateTime @default(now())
+
+  session FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+// ─── Workers ───
+
+model WorkerRegistration {
+  id             String   @id @default(uuid())
+  tenantId       String?
+  instanceId     String   @unique
+  type           String
+  version        String
+  capabilities   Json     // string[]
+  maxConcurrency Int
+  hostname       String
+  status         String   @default("online") // "online", "draining", "offline"
+  registeredAt   DateTime @default(now())
+  lastHeartbeat  DateTime?
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  tenant     Tenant?           @relation(fields: [tenantId], references: [id])
+  heartbeats WorkerHeartbeat[]
+}
+
+model WorkerHeartbeat {
+  id             String   @id @default(uuid())
+  instanceId     String
+  activeJobs     Int
+  totalProcessed Int
+  totalFailed    Int
+  memoryUsage    BigInt
+  cpuUsage       Float
+  createdAt      DateTime @default(now())
+  deletedAt      DateTime?
+
+  worker WorkerRegistration @relation(fields: [instanceId], references: [instanceId], onDelete: Cascade)
+}
+
+// ─── MCP ───
+
+model McpServerConfig {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  name      String   @unique
+  transport String   // "stdio", "sse", "http"
+  endpoint  String?  // URL or command path
+  config    Json?    // transport-specific config
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  tenant      Tenant?            @relation(fields: [tenantId], references: [id])
+  invocations McpToolInvocation[]
+}
+
+model McpToolInvocation {
+  id         String   @id @default(uuid())
+  serverId   String
+  toolName   String
+  input      Json?
+  output     Json?
+  durationMs Int?
+  status     String   // "success", "error"
+  error      String?
+  userId     String?
+  createdAt  DateTime @default(now())
+  deletedAt  DateTime?
+
+  server McpServerConfig @relation(fields: [serverId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Knowledge Management (Phase 6)
+// ─────────────────────────────────────────────────────────────
+
+model Article {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  title       String
+  slug        String   @unique
+  content     String   @db.Text
+  contentHash String?
+  status      String   @default("draft") // draft, review, approved, published, archived
+  authorId    String
+  templateId  String?
+  teamId      String?                   // null = visible to all in tenant; set = team-only
+  tags        String[] @default([])
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  publishedAt DateTime?
+
+  tenant   Tenant?          @relation(fields: [tenantId], references: [id])
+  author   User             @relation("UserArticles", fields: [authorId], references: [id])
+  template Template?        @relation(fields: [templateId], references: [id])
+  team     Team?            @relation(fields: [teamId], references: [id])
+  versions ArticleVersion[]
+}
+
+model ArticleVersion {
+  id        String   @id @default(uuid())
+  articleId String
+  version   Int
+  content   String   @db.Text
+  changeSummary String?
+  authorId  String
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model Template {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  name        String   @unique
+  description String?
+  sections    Json     // TemplateSection[]
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id])
+  articles Article[]
+}
+
+model TrainingModule {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  title       String
+  description String?
+  articleId   String?
+  difficulty  String   @default("beginner") // beginner, intermediate, advanced
+  durationMinutes Int @default(30)
+  modules     Json     // TrainingModuleItem[]
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  tenant   Tenant?          @relation(fields: [tenantId], references: [id])
+  progress LearnerProgress[]
+}
+
+model LearnerProgress {
+  id              String   @id @default(uuid())
+  userId          String
+  trainingId      String
+  completedItems  Json     @default("[]") // string[] of completed module item IDs
+  completionPct   Float    @default(0)
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  user     User           @relation(fields: [userId], references: [id])
+  training TrainingModule @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trainingId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Blob Storage (Phase 2.12)
+// ─────────────────────────────────────────────────────────────
+
+model Blob {
+  id          String   @id @default(uuid())
+  tenantId    String
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String
+  contentHash String?  @unique   // SHA-256 hash for deduplication
+  uploaderId  String?
+  metadata    Json?
+  analysis    Json?                 // Structured AI analysis (BlobAnalysisSchema)
+  tags        String[] @default([]) // Purpose tags: "pdf-refinery", "runbook", "knowledge", etc.
+  purpose     String?               // Primary purpose: "runbook-hero", "runbook-inside", "document", "analysis"
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  uploader   User?   @relation("UserBlobs", fields: [uploaderId], references: [id])
+  chunks     DocumentChunk[]
+  actionLogs BlobActionLog[]
+  images     BlobImage[]
+
+  @@index([tenantId])
+}
+
+/// Extracted image from a PDF document with AI-generated description
+model BlobImage {
+  id           String   @id @default(uuid())
+  blobId       String
+  tenantId     String
+  pageNum      Int                               // 1-based page number (0 = unknown)
+  storagePath  String                            // blob storage key for the image file
+  mimeType     String   @default("image/png")
+  width        Int      @default(0)
+  height       Int      @default(0)
+  sizeBytes    Int      @default(0)
+  sortOrder    Int      @default(0)              // ordering within document
+  description  String?  @db.Text                 // AI vision description
+  category     String?                           // photo, chart, table, diagram, logo, map, floorplan
+  metadata     Json?                             // { confidence, labels, isHero, ... }
+  createdAt    DateTime @default(now())
+
+  blob   Blob   @relation(fields: [blobId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([blobId])
+  @@index([tenantId])
+}
+
+/// Action log entry for a Blob document lifecycle event
+model BlobActionLog {
+  id         String   @id @default(uuid())
+  blobId     String
+  tenantId   String?                     // denormalized for fast tenant-scoped queries
+  action     String                      // uploaded, rescan-queued, extract-start, extract-done, extract-failed, analyze-start, analyze-done, analyze-failed, embed-start, embed-done, embed-failed, status-changed
+  status     String   @default("ok")     // ok, error, warning
+  details    Json?                       // rich structured data per action type
+  source     String   @default("api")    // api, worker, admin, system
+  userId     String?                     // who triggered it (null for system/worker)
+  durationMs Int?                        // how long the action took
+  createdAt  DateTime @default(now())
+
+  blob Blob @relation(fields: [blobId], references: [id], onDelete: Cascade)
+
+  @@index([blobId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([action, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Jobs / Async Tasks
+// ─────────────────────────────────────────────────────────────
+
+model Job {
+  id          String   @id @default(cuid())
+  type        String    // "export_tenant", "import_tenant", "copy_tenant"
+  status      String    // "pending", "running", "completed", "failed"
+  progress    Int       @default(0) // 0-100
+  result      Json?     // arbitrary output data
+  error       String?
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  tenantId    String?
+  tenant      Tenant?   @relation(fields: [tenantId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([tenantId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Document Chunks (PDF Refinery — vector embeddings)
+// ─────────────────────────────────────────────────────────────
+
+model DocumentChunk {
+  id          String   @id @default(uuid())
+  blobId      String                            // FK to Blob
+  tenantId    String                            // Denormalized for fast tenant-scoped queries
+  chunkIndex  Int                               // 0-based position in document
+  content     String                            // chunk text content
+  tokenCount  Int      @default(0)             // estimated token count
+  metadata    Json?                             // { headings, startOffset, endOffset }
+  embedding   Unsupported("vector(3072)")?      // text-embedding-3-large = 3072 dims
+  createdAt   DateTime @default(now())
+
+  blob        Blob     @relation(fields: [blobId], references: [id], onDelete: Cascade)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([blobId])
+  @@index([tenantId])
+}
+
+// ─── Bridge Domain Consent ──────────────────────────────────────
+
+/// Tenant-wide bridge consent. Domains approved here are
+/// pre-consented for all users in the tenant.
+model BridgeConsentTenant {
+  id          String              @id @default(uuid())
+  tenantId    String
+  domain      String              // e.g. "example.com"
+  pattern     String              // glob: "*.example.com" or exact "example.com"
+  description String?
+  level       BridgeConsentLevel  @default(READ)
+  isEnabled   Boolean             @default(true)
+  grantedBy   String?             // userId of admin who approved
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, domain])
+  @@index([tenantId])
+}
+
+/// Per-user bridge consent. Allows users to add personal domains
+/// or override (deny) tenant-level consent for themselves.
+model BridgeConsentUser {
+  id        String              @id @default(uuid())
+  userId    String
+  tenantId  String
+  domain    String              // e.g. "dr.dk"
+  pattern   String              // glob pattern for matching
+  level     BridgeConsentLevel  @default(READ)
+  status    BridgeConsentStatus @default(ALLOWED)
+  grantedAt DateTime            @default(now())
+  revokedAt DateTime?
+  updatedAt DateTime            @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId, domain])
+  @@index([userId, tenantId])
+}
+
+enum BridgeConsentLevel {
+  READ        // Can read page content (GET_PAGE_INFO, GET_PAGE_TEXT, etc.)
+  READ_WRITE  // Can read + interact (FILL_INPUT, CLICK_ELEMENT, FETCH_PAGE, etc.)
+}
+
+enum BridgeConsentStatus {
+  ALLOWED
+  DENIED
+  REVOKED
+}
+
+// ─── Key/Value Store (scraper persistence) ──────────────────────
+
+model KeyValueStore {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String                // dot-notation key, e.g. "tenant.listing.12345"
+  value     Json                  // arbitrary JSON payload
+  tags      String[]              // searchable tags, e.g. ["listing", "copenhagen"]
+  source    String?               // producer identifier, e.g. "scraper", "extension"
+  createdBy String?               // optional userId of the creator
+  expiresAt DateTime?             // optional TTL for ephemeral data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation("KeyValueStoreUser", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, tags])
+  @@index([tenantId, source])
+  @@index([expiresAt])
+}
+
+// ─── Mixin Key/Value Store (per-user mixin data) ────────────────
+
+model MixinKeyValue {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  mixinId   String               // slug of the iframe tool / mixin
+  key       String               // e.g. "sharepoint.selected-site"
+  value     Json                 // arbitrary JSON payload
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, mixinId, key])
+  @@index([tenantId, userId, mixinId])
+}
+
+// ─── Iframe Tools (registered external iframe tools) ────────────
+
+model IframeTool {
+  id          String   @id @default(cuid())
+  tenantId    String
+  slug        String               // unique slug per tenant
+  name        String
+  description String?
+  url         String               // base URL of the iframe tool
+  icon        String   @default("AppWindow")
+  permissions String[] @default([]) // e.g. ["bridge:read", "nosql:read", "kv:readwrite"]
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+

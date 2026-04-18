@@ -1,0 +1,83 @@
+// ─────────────────────────────────────────────────────────────
+// PDF Refinery Worker — Segmented Prisma Schema (PDF Processing)
+//
+// Owns: PDF documents, per-page text extraction, rental data extraction,
+// quality scoring, and embedding state.
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  output          = "../../node_modules/.prisma/pdf-refinery-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "pdf_refinery"]
+}
+
+/// Uploaded PDF document and its processing state
+model PdfDocument {
+  id             String   @id @default(uuid())
+  tenantId       String?
+  blobId         String            // FK to Blob in core schema
+  filename       String
+  pageCount      Int?
+  status         String   @default("pending") // pending, extracting, analyzing, embedded, completed, failed
+  qualityScore   Int?              // 0–100: text extraction quality
+  ocrFallback    Boolean  @default(false)
+  extractionModel String?          // "text", "ocr", "vision"
+  errorMessage   String?
+  metadata       Json?             // { fileSize, uploadedBy, ... }
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  pages       PdfPage[]
+  extractions PdfRentalExtraction[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@schema("pdf_refinery")
+}
+
+/// Per-page text extraction
+model PdfPage {
+  id           String   @id @default(uuid())
+  documentId   String
+  pageNumber   Int
+  content      String   @db.Text
+  tokenCount   Int
+  qualityScore Int?             // 0–100: per-page quality
+  ocrUsed      Boolean  @default(false)
+  metadata     Json?            // { tables, images, confidence, ... }
+  createdAt    DateTime @default(now())
+
+  document PdfDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, pageNumber])
+  @@schema("pdf_refinery")
+}
+
+/// Structured rental data extracted from lejeliste tables
+model PdfRentalExtraction {
+  id           String   @id @default(uuid())
+  documentId   String
+  unitId       String?          // e.g. "st.th", "1.tv"
+  address      String?
+  area         Float?           // m²
+  rooms        Int?
+  rent         Float?           // monthly rent
+  deposit      Float?
+  moveInDate   String?
+  tenantName   String?
+  confidence   Float?           // 0.0–1.0
+  rawText      String?  @db.Text
+  metadata     Json?            // additional extracted fields
+  createdAt    DateTime @default(now())
+
+  document PdfDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@schema("pdf_refinery")
+}

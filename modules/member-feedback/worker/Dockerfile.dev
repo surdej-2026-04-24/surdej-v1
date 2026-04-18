@@ -1,0 +1,20 @@
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# ── Install ──
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY tsconfig.json ./
+COPY modules/member-feedback/shared/package.json modules/member-feedback/shared/
+COPY modules/member-feedback/worker/package.json modules/member-feedback/worker/
+RUN pnpm install --frozen-lockfile
+
+# ── Copy source ──
+COPY modules/member-feedback/shared/ modules/member-feedback/shared/
+COPY modules/member-feedback/worker/ modules/member-feedback/worker/
+
+# ── Generate Prisma client ──
+RUN pnpm --filter @surdej/module-member-feedback-worker prisma:generate
+
+# ── Run with tsx ──
+CMD ["pnpm", "--filter", "@surdej/module-member-feedback-worker", "dev"]

@@ -1,0 +1,360 @@
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/tool-management-tools-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["tool_management_tools"]
+}
+
+// ─── Tool (legacy — kept for backward compatibility) ───────────
+// Original flat tool definitions. Superseded by McpServer + McpTool.
+
+model Tool {
+    id             String   @id @default(uuid())
+    tenantId       String?                         // null = global/built-in
+    name           String   @unique                // slug: "web_search", "rag_search"
+    label          String                          // Display: "Web Search"
+    description    String?  @db.Text
+    category       String   @default("general")   // "search", "analysis", "generation", "context", "integration"
+    icon           String?                         // Lucide icon name
+    isEnabled      Boolean  @default(true)
+    isBuiltIn      Boolean  @default(false)
+    metadata       Json?                           // arbitrary config
+    useCases       String[] @default([])           // associated use-case IDs
+    promptTemplate String?  @db.Text              // optional session prompt prefix
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+    deletedAt      DateTime?
+
+    @@index([tenantId])
+    @@index([category])
+    @@index([isEnabled])
+    @@schema("tool_management_tools")
+}
+
+// ─── MCP Server ────────────────────────────────────────────────
+// An MCP (Model Context Protocol) server that exposes tools.
+// Can be internal (platform-provided) or external (user-added).
+
+model McpServer {
+    id              String    @id @default(uuid())
+    tenantId        String?                           // null = global/built-in
+    name            String    @unique                 // slug: "internal-search", "github-mcp"
+    label           String                            // Display: "Internal Search Tools"
+    description     String?   @db.Text
+    type            String    @default("internal")    // "internal" | "external"
+    transportType   String    @default("sse")         // "stdio" | "sse" | "streamable-http"
+    endpoint        String?                           // URL for SSE/HTTP, command for stdio
+    command         String?                           // stdio command (e.g. "npx -y @modelcontextprotocol/server-github")
+    args            String[]  @default([])            // stdio command arguments
+    envVars         Json?                             // env vars for stdio server { KEY: "value" }
+    headers         Json?                             // custom HTTP headers for SSE/HTTP transport
+    authType        String    @default("none")        // "none" | "api-key" | "bearer" | "oauth"
+    authConfig      Json?                             // auth configuration (tokens stored encrypted)
+    icon            String?                           // Lucide icon name
+    isEnabled       Boolean   @default(true)
+    isBuiltIn       Boolean   @default(false)
+    status          String    @default("unknown")     // "online" | "offline" | "error" | "unknown"
+    statusMessage   String?                           // last error or status detail
+    lastHealthCheck DateTime?
+    metadata        Json?                             // arbitrary config
+    createdAt       DateTime  @default(now())
+    updatedAt       DateTime  @updatedAt
+    deletedAt       DateTime?
+
+    tools McpTool[]
+
+    @@index([tenantId])
+    @@index([type])
+    @@index([isEnabled])
+    @@index([status])
+    @@schema("tool_management_tools")
+}
+
+// ─── MCP Tool ──────────────────────────────────────────────────
+// A tool exposed by an MCP server. Discovered automatically or
+// registered manually. Maps to MCP's tools/list response.
+
+model McpTool {
+    id          String   @id @default(uuid())
+    serverId    String
+    name        String                              // tool name as exposed by MCP (e.g. "search_code")
+    label       String                              // display label
+    description String?  @db.Text
+    inputSchema Json?                               // JSON Schema for tool parameters (from MCP)
+    category    String   @default("general")        // local categorization
+    icon        String?                             // Lucide icon name
+    isEnabled   Boolean  @default(true)
+    metadata    Json?                               // extra config, annotations
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    server McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+    @@unique([serverId, name])
+    @@index([serverId])
+    @@index([category])
+    @@index([isEnabled])
+    @@schema("tool_management_tools")
+}
+
+// ─── Use Case ──────────────────────────────────────────────────
+// A persisted, versionable use case definition.
+// Each use case can have multiple versions and test cases.
+
+model UseCase {
+    id            String   @id @default(uuid())
+    tenantId      String?                           // null = global/built-in
+    slug          String   @unique                  // e.g. "improve-text"
+    label         String                            // Display: "Forbedr min tekst"
+    description   String?  @db.Text
+    icon          String?                           // Lucide icon name
+    isBuiltIn     Boolean  @default(false)
+    isActive      Boolean  @default(true)
+    workflowMode  Boolean  @default(false)          // true = multi-step workflow, false = legacy single-prompt
+    tags          String[] @default([])             // classification tags
+    metadata      Json?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    deletedAt     DateTime?
+
+    versions            UseCaseVersion[]
+    testCases           UseCaseTestCase[]
+    workflowTasks       WorkflowTask[]
+    workflowAttachments WorkflowAttachment[]
+    sessions            WorkflowSession[]
+    useCaseTags         UseCaseTag[]
+
+    @@index([tenantId])
+    @@index([slug])
+    @@schema("tool_management_tools")
+}
+
+// ─── Use Case Version ──────────────────────────────────────────
+// Immutable snapshot of a use case configuration at a point in time.
+
+model UseCaseVersion {
+    id             String   @id @default(uuid())
+    useCaseId      String
+    version        Int                            // auto-incremented per use case
+    promptTemplate String   @db.Text              // system prompt
+    tools          String[] @default([])          // tool IDs available in this version
+    modelTier      String   @default("medium")    // "low", "medium", "reasoning"
+    changelog      String?  @db.Text              // what changed
+    createdAt      DateTime @default(now())
+
+    useCase  UseCase          @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+    testRuns UseCaseTestRun[]
+
+    @@unique([useCaseId, version])
+    @@index([useCaseId])
+    @@schema("tool_management_tools")
+}
+
+// ─── Use Case Test Case ────────────────────────────────────────
+// A test scenario for a use case: user prompt + optional attachments
+// + an evaluation prompt to judge the AI response.
+
+model UseCaseTestCase {
+    id               String   @id @default(uuid())
+    useCaseId        String
+    name             String                        // short label for the test
+    userPrompt       String   @db.Text             // the user message to send
+    evaluationPrompt String   @db.Text             // AI prompt to evaluate the response (returns pass/fail + reasoning)
+    expectedBehavior String?  @db.Text             // human-readable description of expected outcome
+    isActive         Boolean  @default(true)
+    sortOrder        Int      @default(0)
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    useCase     UseCase                @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+    attachments UseCaseTestAttachment[]
+    testRuns    UseCaseTestRun[]
+
+    @@index([useCaseId])
+    @@schema("tool_management_tools")
+}
+
+// ─── Use Case Test Attachment ──────────────────────────────────
+// Documents attached to a test case, stored as binary in the DB.
+
+model UseCaseTestAttachment {
+    id         String   @id @default(uuid())
+    testCaseId String
+    filename   String
+    mimeType   String
+    sizeBytes  Int
+    data       Bytes                              // binary content stored in DB
+    createdAt  DateTime @default(now())
+
+    testCase UseCaseTestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+    @@index([testCaseId])
+    @@schema("tool_management_tools")
+}
+
+// ─── Use Case Test Run ─────────────────────────────────────────
+// Result of running a test case against a specific use case version.
+
+model UseCaseTestRun {
+    id              String   @id @default(uuid())
+    testCaseId      String
+    versionId       String
+    status          String   @default("pending")  // "pending", "running", "passed", "failed", "error"
+    modelTier       String                        // which model tier was used
+    aiResponse      String?  @db.Text             // the raw AI response
+    evaluationResult Json?                        // { passed: bool, score?: number, reasoning: string }
+    durationMs      Int?                          // how long the AI call took
+    tokenUsage      Json?                         // { promptTokens, completionTokens, totalTokens }
+    error           String?  @db.Text             // error message if status = "error"
+    createdAt       DateTime @default(now())
+
+    testCase UseCaseTestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+    version  UseCaseVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+    @@index([testCaseId])
+    @@index([versionId])
+    @@index([status])
+    @@schema("tool_management_tools")
+}
+
+// ─── Workflow Tasks ────────────────────────────────────────────
+
+model WorkflowTask {
+    id             String   @id @default(uuid())
+    useCaseId      String
+    taskId         String                        // human-readable key, e.g. "research_company"
+    title          String                        // display title, e.g. "1. Company Research"
+    sortOrder      Int      @default(0)          // ordering within the workflow
+    systemPrompt   String   @db.Text             // step-specific system prompt
+    allowedTools   String[] @default([])         // scoped tool names for this step
+    dataSchema     Json                          // JSON Schema defining required fields
+    seedData       Json?                         // sample data matching dataSchema for testing
+    userHint       String?  @db.Text             // suggested user action, e.g. "Open competitor website"
+    description    String?  @db.Text             // optional admin notes
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+
+    useCase     UseCase @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+    attachments WorkflowAttachment[]
+
+    @@unique([useCaseId, taskId])
+    @@index([useCaseId])
+    @@schema("tool_management_tools")
+}
+
+// ─── Workflow Session ──────────────────────────────────────────
+
+model WorkflowSession {
+    id              String   @id @default(uuid())
+    useCaseId       String
+    userId          String                       // from auth context
+    tenantId        String?
+    currentStepIdx  Int      @default(0)         // index into the task list
+    status          String   @default("active")  // "active", "completed", "aborted"
+    formData        Json     @default("{}")       // aggregated form data across all steps
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    useCase    UseCase                  @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+    snapshots  SessionContextVersion[]
+    messages   SessionMessage[]
+
+    @@index([useCaseId])
+    @@index([userId])
+    @@index([status])
+    @@schema("tool_management_tools")
+}
+
+// ─── Session Context Version ───────────────────────────────────
+
+model SessionContextVersion {
+    id         String   @id @default(uuid())
+    sessionId  String
+    stepIndex  Int                               // the step that was just completed
+    formData   Json                              // snapshot of aggregated form data at this point
+    createdAt  DateTime @default(now())
+
+    session WorkflowSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+    @@unique([sessionId, stepIndex])
+    @@index([sessionId])
+    @@schema("tool_management_tools")
+}
+
+// ─── Session Message ───────────────────────────────────────────
+
+model SessionMessage {
+    id        String   @id @default(uuid())
+    sessionId String
+    stepIndex Int                                // which task this message belongs to
+    role      String                             // "user", "assistant", "system"
+    content   String   @db.Text
+    metadata  Json?                              // reasoning steps, tool calls, etc.
+    createdAt DateTime @default(now())
+
+    session WorkflowSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+    @@index([sessionId, stepIndex])
+    @@schema("tool_management_tools")
+}
+
+// ─── Workflow Attachment ───────────────────────────────────────
+// Documents attached to either a UseCase (global) or a WorkflowTask (step-specific)
+
+model WorkflowAttachment {
+    id         String   @id @default(uuid())
+    useCaseId  String?
+    taskId     String?
+    filename   String
+    mimeType   String
+    sizeBytes  Int
+    data       Bytes
+    createdAt  DateTime @default(now())
+
+    useCase    UseCase?       @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+    task       WorkflowTask?  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+    @@index([useCaseId])
+    @@index([taskId])
+    @@schema("tool_management_tools")
+}
+
+// ─── Workflow Tag ──────────────────────────────────────────────
+// Named tag for categorizing workflows. Managed via admin UI.
+
+model WorkflowTag {
+    id          String   @id @default(uuid())
+    name        String   @unique                // slug-like: "research", "analysis"
+    label       String                          // Display: "Research"
+    color       String   @default("#6b7280")    // hex color for badge
+    description String?  @db.Text
+    sortOrder   Int      @default(0)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    useCases UseCaseTag[]
+
+    @@index([name])
+    @@schema("tool_management_tools")
+}
+
+// ─── Use Case ↔ Tag join ───────────────────────────────────────
+
+model UseCaseTag {
+    useCaseId String
+    tagId     String
+    createdAt DateTime @default(now())
+
+    useCase UseCase     @relation(fields: [useCaseId], references: [id], onDelete: Cascade)
+    tag     WorkflowTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+    @@id([useCaseId, tagId])
+    @@index([useCaseId])
+    @@index([tagId])
+    @@schema("tool_management_tools")
+}

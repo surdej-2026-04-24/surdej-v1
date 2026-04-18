@@ -1,0 +1,13 @@
+{
+    "name": "@surdej/module-core-issues-shared",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "src/index.ts",
+    "dependencies": {
+        "zod": "^3.25.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.0-beta"
+    }
+}

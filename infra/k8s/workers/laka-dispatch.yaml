@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-laka-dispatch
+  namespace: surdej
+  labels:
+    app: worker-laka-dispatch
+    app.kubernetes.io/name: worker-laka-dispatch
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: worker-laka-dispatch
+  template:
+    metadata:
+      labels:
+        app: worker-laka-dispatch
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/surdej/surdej-v1/worker-laka-dispatch:latest
+          env:
+            - name: NATS_URL
+              value: "nats://nats.surdej.svc.cluster.local:4222"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: surdej-secrets
+                  key: DATABASE_URL
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
