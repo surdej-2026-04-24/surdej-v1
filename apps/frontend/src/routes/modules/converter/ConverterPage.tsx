@@ -53,6 +53,8 @@ const TECHNIQUE_OPTIONS: TechniqueOption[] = [
 
 type Step = 'input' | 'converting' | 'result';
 
+const PLACEHOLDER_TEXT = `Indsæt din strikkeopskrift her...\n\nEksempel:\nRyg:\nSlå 120 m op på p. 4.\nStrik 5 cm rib (1r, 1vr).\nSkift til p. 5 og strik glat...\n\nForstykke:\n...\n\nÆrmer (strik 2 ens):\n...`;
+
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(technique: ConversionTechnique): string {
@@ -105,7 +107,8 @@ export function ConverterPage() {
     const [copied, setCopied] = useState(false);
     const abortRef = useRef<AbortController | null>(null);
 
-    const selectedTechnique = TECHNIQUE_OPTIONS.find((t) => t.value === technique)!;
+    // Safe: technique is always one of ConversionTechnique values, initialized to 'top-down-seamless'
+    const selectedTechnique = TECHNIQUE_OPTIONS.find((t) => t.value === technique) ?? TECHNIQUE_OPTIONS[0];
 
     // ─── Convert via AI ───
 
@@ -202,12 +205,12 @@ export function ConverterPage() {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            // Fallback
+            // Legacy fallback for older browsers where Clipboard API is unavailable
             const ta = document.createElement('textarea');
             ta.value = result;
             document.body.appendChild(ta);
             ta.select();
-            document.execCommand('copy');
+            document.execCommand('copy'); // Deprecated but needed as fallback
             document.body.removeChild(ta);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
@@ -259,8 +262,8 @@ export function ConverterPage() {
                         <p className="font-medium mb-1">Sådan bruger du konverteren</p>
                         <p className="text-blue-700 dark:text-blue-400">
                             Indsæt din gamle strikkeopskrift (forstykke, ryg, ærmer osv.) i tekstfeltet nedenfor.
-                            Vælg hvilken moderne teknik du ønsker, og tryk &quot;Konvertér&quot;.
-                            AI&apos;en vil omskrive opskriften til en moderne version i ét stykke.
+                            Vælg hvilken moderne teknik du ønsker, og tryk "Konvertér".
+                            AI'en vil omskrive opskriften til en moderne version i ét stykke.
                         </p>
                     </div>
                 </CardContent>
@@ -330,7 +333,7 @@ export function ConverterPage() {
                             <Textarea
                                 value={inputText}
                                 onChange={(e) => setInputText(e.target.value)}
-                                placeholder={'Indsæt din strikkeopskrift her...\n\nEksempel:\nRyg:\nSlå 120 m op på p. 4.\nStrik 5 cm rib (1r, 1vr).\nSkift til p. 5 og strik glat...\n\nForstykke:\n...\n\nÆrmer (strik 2 ens):\n...'}
+                                placeholder={PLACEHOLDER_TEXT}
                                 className="min-h-[300px] font-mono text-sm"
                             />
                             <div className="flex items-center justify-between mt-3">
@@ -362,7 +365,7 @@ export function ConverterPage() {
                             <div>
                                 <p className="font-semibold text-lg">Konverterer opskrift…</p>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    AI&apos;en omskriver din opskrift til{' '}
+                                    AI'en omskriver din opskrift til{' '}
                                     <span className="font-medium">{selectedTechnique.label.toLowerCase()}</span>
                                 </p>
                             </div>
