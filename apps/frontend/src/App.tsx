@@ -83,6 +83,8 @@ import { FoodTrackerDashboardPage } from '@/routes/modules/food-tracker/FoodTrac
 import { ReceiptScanPage } from '@/routes/modules/food-tracker/ReceiptScanPage';
 import { RecipeSuggestionsPage } from '@/routes/modules/food-tracker/RecipeSuggestionsPage';
 
+// ─── Domain: Opskrift-Konverter (Pattern Converter) ─────────────
+import { ConverterPage } from '@/routes/modules/converter/ConverterPage';
 // ─── Domain: Poster Tracker ────────────────────────────────────
 import { PosterTrackerDashboardPage } from '@/routes/modules/poster-tracker/PosterTrackerDashboardPage';
 
@@ -231,6 +233,8 @@ function AuthenticatedApp() {
                     <Route path="modules/food-tracker/scan" element={<ReceiptScanPage />} />
                     <Route path="modules/food-tracker/recipes" element={<RecipeSuggestionsPage />} />
 
+                    {/* ─── Opskrift-Konverter (Pattern Converter) Module ─── */}
+                    <Route path="modules/converter" element={<ConverterPage />} />
                     {/* ─── Poster Tracker Module ─── */}
                     <Route path="modules/poster-tracker" element={<PosterTrackerDashboardPage />} />
 
