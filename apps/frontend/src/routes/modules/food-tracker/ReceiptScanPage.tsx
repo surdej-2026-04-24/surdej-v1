@@ -1,66 +1,59 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
-    ScanLine, Upload, Camera, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw,
+    ScanLine, Upload, Camera, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
-import { fileToBase64 } from './scanUtils';
 
 // ─── AI receipt parsing ────────────────────────────────────────────────────────
+// Sends the image to the backend /api/ai/scan-receipt endpoint which uses
+// GPT-4o vision to extract ALL items from the receipt with their prices.
+// Expiry dates are intentionally omitted — receipts do not carry that info.
 
 interface ParsedReceiptItem {
     name: string;
     quantity: string;
+    price: string | null;     // price as read from the receipt line (e.g. "29.95")
     category: string;
-    estimatedExpiry: string | null; // ISO date
 }
 
-const RECEIPT_PROMPT = `Du er en kvitteringsscanner. Analyser dette billede af en kvittering og udtræk alle varer.
-Returner KUN et gyldigt JSON array uden yderligere tekst. Hvert element skal have:
-- "name": produktnavn som vist på kvitteringen (string)
-- "quantity": mængde/antal f.eks. "2 stk", "500g", "1 L" (string)
-- "category": én af: "Mejeri", "Kød & Fisk", "Grøntsager & Frugt", "Drikkevarer", "Brød & Bagværk", "Frost", "Kolonial", "Hygiejne & Rengøring", "Andet"
-- "estimatedExpiry": estimeret udløbsdato som YYYY-MM-DD baseret på produkttype, eller null
+async function scanReceiptImage(file: File): Promise<ParsedReceiptItem[]> {
+    // Convert file to base64
+    const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result as string;
+            const commaIdx = result.indexOf(',');
+            if (!result.startsWith('data:') || commaIdx === -1) {
+                reject(new Error('FileReader produced an unexpected result format'));
+                return;
+            }
+            resolve(result.slice(commaIdx + 1));
+        };
+        reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+        reader.readAsDataURL(file);
+    });
 
-Eksempel: [{"name":"Minimælk 1 L","quantity":"2 stk","category":"Mejeri","estimatedExpiry":"2025-05-01"}]`;
-
-async function scanReceiptWithAI(file: File): Promise<ParsedReceiptItem[]> {
-    const imageBase64 = await fileToBase64(file);
-
-    const res = await fetch('/api/module/core-openai/image-to-text', {
+    const res = await fetch('/api/ai/scan-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            imageBase64,
-            imageMimeType: file.type || 'image/jpeg',
-            prompt: RECEIPT_PROMPT,
-            model: 'gpt-4o',
-            maxTokens: 2048,
-        }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type || 'image/jpeg' }),
     });
 
     if (!res.ok) {
-        throw new Error(`AI analyse fejlede: ${res.status}`);
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as { error?: string };
+        throw new Error(err.error ?? `Scan failed: ${res.status}`);
     }
 
-    const data = await res.json() as { description: string };
-    const text = data.description.trim();
-
-    // Extract JSON array from the response (handle markdown code blocks if present)
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-
-    try {
-        const items = JSON.parse(jsonMatch[0]) as ParsedReceiptItem[];
-        return Array.isArray(items) ? items : [];
-    } catch {
-        throw new Error('AI returnerede ugyldigt format. Prøv igen.');
-    }
+    const data = await res.json() as { items?: ParsedReceiptItem[] };
+    return data.items ?? [];
 }
 
-type Step = 'upload' | 'scanning' | 'review' | 'done' | 'error';
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Step = 'upload' | 'scanning' | 'review' | 'done';
 
 interface ReviewItem extends ParsedReceiptItem {
     id: string;
@@ -102,20 +95,26 @@ export function ReceiptScanPage() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
     const [addedCount, setAddedCount] = useState(0);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [scanError, setScanError] = useState<string | null>(null);
 
     const processFile = useCallback(async (file: File) => {
         setPreviewUrl(URL.createObjectURL(file));
         setStep('scanning');
-        setErrorMessage(null);
+        setScanError(null);
+
         try {
-            const parsed = await scanReceiptWithAI(file);
+            const parsed = await scanReceiptImage(file);
+            if (parsed.length === 0) {
+                setScanError('Ingen varer fundet på kvitteringen. Prøv et klarere billede, eller tilføj varer manuelt.');
+            }
             setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
-            setStep('review');
         } catch (err) {
-            setErrorMessage(err instanceof Error ? err.message : 'Ukendt fejl');
-            setStep('error');
+            const msg = err instanceof Error ? err.message : String(err);
+            setScanError(`Scanning fejlede: ${msg}. Du kan tilføje varer manuelt.`);
+            setReviewItems([]);
         }
+
+        setStep('review');
     }, []);
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,9 +150,10 @@ export function ReceiptScanPage() {
                 id: crypto.randomUUID(),
                 name: r.name,
                 quantity: r.quantity,
+                price: r.price || null,
                 category: r.category,
                 purchasedAt: new Date().toISOString().slice(0, 10),
-                expiresAt: r.estimatedExpiry,
+                expiresAt: null, // Receipts do not carry expiry date information
                 opened: false,
                 openedAt: null,
             }));
@@ -166,6 +166,7 @@ export function ReceiptScanPage() {
         setStep('upload');
         setPreviewUrl(null);
         setReviewItems([]);
+        setScanError(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (cameraInputRef.current) cameraInputRef.current.value = '';
     }, []);
@@ -260,10 +261,13 @@ export function ReceiptScanPage() {
                             <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 8px' }}>💡 Sådan virker det</p>
                             <ol style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
                                 <li>Upload et billede af din kvittering</li>
-                                <li>AI analyserer og identificerer varerne</li>
+                                <li>AI scanner og identificerer ALLE varer og priser</li>
                                 <li>Gennemse og rediger listen før import</li>
                                 <li>Varerne tilføjes automatisk til køleskabet</li>
                             </ol>
+                            <p style={{ fontSize: 12, color: 'var(--muted-foreground, #6b7280)', margin: '8px 0 0' }}>
+                                ℹ️ Udløbsdatoer hentes ikke fra kvitteringen — tilføj dem manuelt via "Scan udløbsdato".
+                            </p>
                         </div>
                     </div>
                 )}
@@ -282,14 +286,14 @@ export function ReceiptScanPage() {
                         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
                         <p style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Analyserer kvittering…</p>
                         <p style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: 0 }}>
-                            AI scanner og identificerer varer. Et øjeblik…
+                            AI scanner og identificerer alle varer og priser. Et øjeblik…
                         </p>
                     </div>
                 )}
 
                 {/* ── Step: Review ── */}
                 {step === 'review' && (
-                    <div style={{ maxWidth: 760, margin: '0 auto' }}>
+                    <div style={{ maxWidth: 860, margin: '0 auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                             <div>
                                 <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>
@@ -304,58 +308,79 @@ export function ReceiptScanPage() {
                             </button>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* Error / warning banner */}
+                        {scanError && (
+                            <div style={{
+                                display: 'flex', alignItems: 'flex-start', gap: 10,
+                                padding: 12, borderRadius: 8, marginBottom: 12,
+                                background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e',
+                            }}>
+                                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                                <span style={{ fontSize: 13 }}>{scanError}</span>
+                            </div>
+                        )}
+
+                        {/* Column headers */}
+                        {reviewItems.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '24px 2fr 1fr 1fr 1.5fr 28px', gap: 8, padding: '0 4px 6px', borderBottom: '1px solid var(--border, #e5e7eb)', marginBottom: 6 }}>
+                                <span />
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Varenavn</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Antal</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pris</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kategori</span>
+                                <span />
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {reviewItems.map(item => (
                                 <div
                                     key={item.id}
                                     style={{
-                                        padding: 12, borderRadius: 8,
+                                        padding: '8px 4px', borderRadius: 8,
                                         border: `1px solid ${item.selected ? 'var(--primary, #6366f1)' : 'var(--border, #e5e7eb)'}`,
                                         background: item.selected ? 'color-mix(in srgb, var(--primary, #6366f1) 5%, transparent)' : 'var(--muted, #f9fafb)',
                                         opacity: item.selected ? 1 : 0.5,
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '24px 2fr 1fr 1fr 1.5fr 28px', gap: 8, alignItems: 'center' }}>
                                         <input
                                             type="checkbox"
                                             checked={item.selected}
                                             onChange={() => toggleItem(item.id)}
-                                            style={{ marginTop: 3, cursor: 'pointer', flexShrink: 0 }}
+                                            style={{ cursor: 'pointer', flexShrink: 0 }}
                                         />
-                                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8 }}>
-                                            <input
-                                                value={item.name}
-                                                onChange={e => updateField(item.id, 'name', e.target.value)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                                placeholder="Varenavn"
-                                            />
-                                            <input
-                                                value={item.quantity}
-                                                onChange={e => updateField(item.id, 'quantity', e.target.value)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                                placeholder="Antal"
-                                            />
-                                            <select
-                                                value={item.category}
-                                                onChange={e => updateField(item.id, 'category', e.target.value)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                            >
-                                                {CATEGORY_OPTIONS.map(c => (
-                                                    <option key={c} value={c}>{c}</option>
-                                                ))}
-                                            </select>
-                                            <input
-                                                type="date"
-                                                value={item.estimatedExpiry ?? ''}
-                                                onChange={e => updateField(item.id, 'estimatedExpiry', e.target.value || null)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                                title="Udløbsdato"
-                                            />
-                                        </div>
+                                        <input
+                                            value={item.name}
+                                            onChange={e => updateField(item.id, 'name', e.target.value)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                            placeholder="Varenavn"
+                                        />
+                                        <input
+                                            value={item.quantity}
+                                            onChange={e => updateField(item.id, 'quantity', e.target.value)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                            placeholder="Antal"
+                                        />
+                                        <input
+                                            value={item.price ?? ''}
+                                            onChange={e => updateField(item.id, 'price', e.target.value || null)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                            placeholder="Pris"
+                                        />
+                                        <select
+                                            value={item.category}
+                                            onChange={e => updateField(item.id, 'category', e.target.value)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                        >
+                                            {CATEGORY_OPTIONS.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </select>
                                         <button
                                             onClick={() => removeItem(item.id)}
                                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground, #6b7280)', padding: 4, flexShrink: 0 }}
@@ -369,7 +394,7 @@ export function ReceiptScanPage() {
                             <button
                                 onClick={() => setReviewItems(prev => [...prev, {
                                     id: crypto.randomUUID(),
-                                    name: '', quantity: '1', category: 'Andet', estimatedExpiry: null, selected: true,
+                                    name: '', quantity: '1', price: null, category: 'Andet', selected: true,
                                 }])}
                                 style={{ ...secondaryBtnStyle, justifyContent: 'center', marginTop: 4 }}
                             >
@@ -411,19 +436,6 @@ export function ReceiptScanPage() {
                     </div>
                 )}
 
-                {/* ── Step: Error ── */}
-                {step === 'error' && (
-                    <div style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center' }}>
-                        <p style={{ fontSize: 40, margin: '0 auto 16px' }}>⚠️</p>
-                        <p style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>Scanning fejlede</p>
-                        <p style={{ fontSize: 14, color: 'var(--muted-foreground, #6b7280)', margin: '0 0 24px' }}>
-                            {errorMessage ?? 'Kunne ikke analysere kvitteringen. Prøv igen med et tydeligere billede.'}
-                        </p>
-                        <button onClick={handleReset} style={primaryBtnStyle}>
-                            <RefreshCw size={14} /> Prøv igen
-                        </button>
-                    </div>
-                )}
             </div>
         </div>
     );
