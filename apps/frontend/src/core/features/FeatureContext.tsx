@@ -73,6 +73,11 @@ const DEFAULT_FEATURES: Feature[] = [
         title: 'Workflows', description: 'Workflow management, directory, and sessions',
         ring: 1, enabled: true,
     },
+    {
+        id: '9', featureId: 'food-tracker',
+        title: 'Digital Køleskab', description: 'Kvitteringsscanning, køleskabsoversigt og opskriftforslag for at undgå madspild',
+        ring: 1, enabled: true,
+    },
 ];
 
 // ─── Context ───
