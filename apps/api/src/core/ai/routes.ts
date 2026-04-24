@@ -562,7 +562,7 @@ REGLER:
 - Brug det PRÆCISE produktnavn som det vises på kvitteringen — ingen oversættelse, ingen omdøbning
 - Opfind IKKE varer der ikke tydeligt fremgår af kvitteringen
 - Skriv IKKE udløbsdatoer — kvitteringer viser ikke udløbsdatoer
-- Pris: udtræk kun den endelige pris pr. linje (tal og komma/punktum, ingen valutasymboler)
+- Pris: udtræk kun den endelige pris pr. linje som et tal med punktum som decimal-separator (f.eks. "29.95") — ingen valutasymboler
 - Kategoriser hver vare i én af disse kategorier: "Mejeri", "Kød & Fisk", "Grøntsager & Frugt", "Drikkevarer", "Brød & Bagværk", "Dåse & Konserves", "Frost", "Andet"
 
 Svar KUN med et rent JSON array (ingen markdown, ingen forklaring):
@@ -671,7 +671,8 @@ Svar KUN med et rent JSON array (ingen markdown, ingen forklaring):
         }
     });
 
-
+    /**
+     * POST /api/ai/transcribe — Speech-to-text transcription
      * Accepts multipart FormData with a `file` field (audio/video).
      * Uses Azure OpenAI Whisper to transcribe.
      */

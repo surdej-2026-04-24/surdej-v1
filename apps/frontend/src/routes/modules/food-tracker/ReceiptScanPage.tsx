@@ -25,10 +25,14 @@ async function scanReceiptImage(file: File): Promise<ParsedReceiptItem[]> {
         const reader = new FileReader();
         reader.onload = () => {
             const result = reader.result as string;
-            // Strip data URI prefix to get pure base64
-            resolve(result.split(',')[1] ?? '');
+            const commaIdx = result.indexOf(',');
+            if (!result.startsWith('data:') || commaIdx === -1) {
+                reject(new Error('FileReader produced an unexpected result format'));
+                return;
+            }
+            resolve(result.slice(commaIdx + 1));
         };
-        reader.onerror = reject;
+        reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
         reader.readAsDataURL(file);
     });
 
