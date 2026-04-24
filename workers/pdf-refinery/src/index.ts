@@ -18,7 +18,7 @@ import { WorkerBase } from '@surdej/worker-template';
 import { createHash } from 'crypto';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { Readable } from 'stream';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { StringCodec } from 'nats';
 import { injectTraceHeaders } from '@surdej/core/node';
 
@@ -1242,7 +1242,9 @@ Important:
                             try {
                                 console.log(`[analyze] Address candidate (${aiAddress ? 'AI' : 'regex'}): "${addressCandidate}" — running DAWA datavask...`);
                                 // TODO: dawaService was part of a domain-specific module (not available in generic template)
-                                const washResult = await dawaService.washAddressForBlob(addressCandidate);
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const _dawaService = (globalThis as any).dawaService;
+                                const washResult = _dawaService ? await _dawaService.washAddressForBlob(addressCandidate) : null;
                                 if (washResult) {
                                     addressWash = washResult as Record<string, unknown>;
                                     console.log(`[analyze] ✅ DAWA datavask: ${washResult.matchCategory} match → ${washResult.fullAddress}`);
@@ -1377,12 +1379,15 @@ Important:
                         // Validate against BlobAnalysisSchema (soft — log but don't fail)
                         try {
                             // TODO: BlobAnalysisSchema was part of a domain-specific module (not available in generic template)
-                            const validation = BlobAnalysisSchema.safeParse(structuredAnalysis);
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const _BlobAnalysisSchema = (globalThis as any).BlobAnalysisSchema;
+                            if (!_BlobAnalysisSchema) throw new Error('BlobAnalysisSchema not available');
+                            const validation = _BlobAnalysisSchema.safeParse(structuredAnalysis);
                             if (validation.success) {
                                 structuredAnalysis = validation.data as Record<string, unknown>;
                                 console.log(`[analyze] ✅ Structured analysis validated against BlobAnalysisSchema`);
                             } else {
-                                console.warn(`[analyze] ⚠️ Zod validation issues (storing anyway):`, validation.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', '));
+                                console.warn(`[analyze] ⚠️ Zod validation issues (storing anyway):`, validation.error.issues.map((i: { path: string[]; message: string }) => `${i.path.join('.')}: ${i.message}`).join(', '));
                             }
                         } catch (zodErr) {
                             console.warn(`[analyze] Could not validate against schema:`, zodErr);
@@ -1422,7 +1427,9 @@ Important:
         try {
             console.log(`[analyze] Fallback DAWA datavask on regex address: "${regexAddress}"`);
             // TODO: dawaService was part of a domain-specific module (not available in generic template)
-            const washResult = await dawaService.washAddressForBlob(regexAddress);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const _dawaService2 = (globalThis as any).dawaService;
+            const washResult = _dawaService2 ? await _dawaService2.washAddressForBlob(regexAddress) : null;
             if (washResult) {
                 addressWash = washResult as Record<string, unknown>;
                 console.log(`[analyze] ✅ Fallback DAWA datavask: ${washResult.matchCategory} match → ${washResult.fullAddress}`);
@@ -1914,7 +1921,7 @@ worker.handle<ExtractImagesPayload>('extract-images', async (job) => {
                     sortOrder: rec.sortOrder,
                     description: rec.description,
                     category: rec.category,
-                    metadata: rec.metadata,
+                    metadata: rec.metadata as unknown as Prisma.InputJsonValue,
                 },
             });
             dbStored++;
@@ -2011,7 +2018,7 @@ async function selfHeal() {
             where: {
                 mimeType: 'application/pdf',
                 metadata: { path: ['status'], equals: 'completed' },
-                analysis: { equals: null },
+                analysis: { equals: Prisma.DbNull },
             },
             select: { id: true, storagePath: true, filename: true },
         });

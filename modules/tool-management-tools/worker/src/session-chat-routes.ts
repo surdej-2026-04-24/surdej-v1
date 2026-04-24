@@ -1,14 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { getPrisma } from './db.js';
-import { streamText, stepCountIs, type CoreMessage } from 'ai';
+import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from 'ai';
 import { createAzure } from '@ai-sdk/azure';
 import { createOpenAI } from '@ai-sdk/openai';
-import type { LanguageModelV1 } from '@ai-sdk/provider';
 import { buildSessionTools } from './session-tools.js';
 
 const prisma = getPrisma();
 
-function getModel(modelId: string): LanguageModelV1 {
+function getModel(modelId: string): LanguageModel {
     if (process.env.AI_PROVIDER !== 'azure') {
         return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
     }
@@ -169,7 +168,7 @@ export function registerSessionChatRoutes(app: FastifyInstance) {
             orderBy: { createdAt: 'asc' },
         });
 
-        const coreMessages: CoreMessage[] = [
+        const coreMessages: ModelMessage[] = [
             systemMessage,
             ...previousMessages.map((m) => ({ role: m.role as any, content: m.content })),
             ...incomingMessages.map((m: any) => ({ role: m.role as any, content: m.content })),
@@ -199,7 +198,7 @@ export function registerSessionChatRoutes(app: FastifyInstance) {
 
         try {
             const result = await streamText({
-                model: getModel(modelName) as any,
+                model: getModel(modelName),
                 messages: coreMessages,
                 ...(hasTools ? {
                     tools,
@@ -209,12 +208,13 @@ export function registerSessionChatRoutes(app: FastifyInstance) {
                     // Emit tool call events as SSE so the UI can show them
                     if (toolCalls) {
                         for (const tc of toolCalls) {
-                            reply.raw.write(`data: ${JSON.stringify({ type: 'tool_call', toolName: tc.toolName, args: tc.args })}\n\n`);
+                            reply.raw.write(`data: ${JSON.stringify({ type: 'tool_call', toolName: tc.toolName, args: (tc as any).input })}\n\n`);
                         }
                     }
                     if (toolResults) {
                         for (const tr of toolResults) {
-                            reply.raw.write(`data: ${JSON.stringify({ type: 'tool_result', toolName: tr.toolName, result: typeof tr.result === 'string' ? tr.result.slice(0, 500) : JSON.stringify(tr.result).slice(0, 500) })}\n\n`);
+                                                        const trOutput = (tr as any).output;
+                            reply.raw.write(`data: ${JSON.stringify({ type: 'tool_result', toolName: tr.toolName, result: typeof trOutput === 'string' ? trOutput.slice(0, 500) : JSON.stringify(trOutput).slice(0, 500) })}\n\n`);
                         }
                     }
                 },

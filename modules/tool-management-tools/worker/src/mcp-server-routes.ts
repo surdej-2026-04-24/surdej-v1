@@ -70,7 +70,7 @@ export function registerMcpServerRoutes(app: FastifyInstance) {
             server = await prisma.mcpServer.update({
                 where: { id: existing.id },
                 data: {
-                    ...result.data,
+                    ...(result.data as any),
                     args: result.data.args ?? [],
                     isEnabled: true,
                     deletedAt: null,
@@ -83,7 +83,7 @@ export function registerMcpServerRoutes(app: FastifyInstance) {
         } else {
             server = await prisma.mcpServer.create({
                 data: {
-                    ...result.data,
+                    ...(result.data as any),
                     args: result.data.args ?? [],
                 },
                 include: { tools: true },
@@ -109,7 +109,7 @@ export function registerMcpServerRoutes(app: FastifyInstance) {
 
         const server = await prisma.mcpServer.update({
             where: { id: req.params.id },
-            data: { ...result.data, updatedAt: new Date() },
+            data: { ...(result.data as any), updatedAt: new Date() },
             include: { tools: true },
         });
 
@@ -240,7 +240,7 @@ export function registerMcpServerRoutes(app: FastifyInstance) {
 
         const tool = await prisma.mcpTool.create({
             data: {
-                ...result.data,
+                ...(result.data as any),
                 serverId: req.params.id,
             },
         });
@@ -266,7 +266,7 @@ export function registerMcpServerRoutes(app: FastifyInstance) {
 
             const updated = await prisma.mcpTool.update({
                 where: { id: req.params.toolId },
-                data: { ...result.data, updatedAt: new Date() },
+                data: { ...(result.data as any), updatedAt: new Date() },
             });
 
             return updated;

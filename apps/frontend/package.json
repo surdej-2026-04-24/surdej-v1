@@ -23,6 +23,8 @@
         "@surdej/module-member-feedback-ui": "workspace:*",
         "@surdej/module-member-nosql-shared": "workspace:*",
         "@surdej/module-member-nosql-ui": "workspace:*",
+        "@surdej/module-mental-klarhed-shared": "workspace:*",
+        "@surdej/module-mental-klarhed-ui": "workspace:*",
         "@surdej/module-tool-management-tools-shared": "workspace:*",
         "@tailwindcss/typography": "^0.5.19",
         "@tanstack/react-virtual": "^3.13.23",

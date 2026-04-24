@@ -327,6 +327,29 @@ export function useCoreCommands() {
                 icon: 'Coins',
                 execute: () => navigate('/modules/poster-tracker/pant'),
             },
+
+            // ─── Mental Klarhed ───
+            {
+                id: 'mental-klarhed.admin.programmes',
+                label: 'Mental Klarhed — Forløbsoversigt',
+                group: 'Mental Klarhed',
+                icon: 'Brain',
+                execute: () => navigate('/modules/mental-klarhed'),
+            },
+            {
+                id: 'mental-klarhed.admin.create',
+                label: 'Mental Klarhed — Nyt forløb',
+                group: 'Mental Klarhed',
+                icon: 'Plus',
+                execute: () => navigate('/modules/mental-klarhed'),
+            },
+            {
+                id: 'mental-klarhed.client.portal',
+                label: 'Mental Klarhed — Klientportal',
+                group: 'Mental Klarhed',
+                icon: 'LayoutDashboard',
+                execute: () => navigate('/mental-klarhed/portal'),
+            },
         ];
 
         for (const cmd of commands) {

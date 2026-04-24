@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { Prisma } from '../node_modules/.prisma/core-comms-client/index.js';
 import {
     SendEmailSchema,
     SendSmsSchema,
@@ -31,7 +32,7 @@ export function registerRoutes(app: FastifyInstance) {
                 sender: process.env.SENDGRID_FROM_EMAIL ?? '',
                 subject,
                 body,
-                metadata: metadata ?? undefined,
+                metadata: metadata != null ? metadata as unknown as Prisma.InputJsonValue : undefined,
             },
         });
 
@@ -44,7 +45,7 @@ export function registerRoutes(app: FastifyInstance) {
             data: {
                 status: emailResult.success ? 'sent' : 'failed',
                 providerMessageId: emailResult.messageId,
-                providerResponse: emailResult.response ?? undefined,
+                providerResponse: emailResult.response != null ? emailResult.response as unknown as Prisma.InputJsonValue : undefined,
                 errorMessage: emailResult.error,
             },
         });
@@ -80,7 +81,7 @@ export function registerRoutes(app: FastifyInstance) {
                 initiatorType: initiatorType ?? 'user',
                 recipient: to,
                 body: message,
-                metadata: metadata ?? undefined,
+                metadata: metadata != null ? metadata as unknown as Prisma.InputJsonValue : undefined,
             },
         });
 
@@ -91,7 +92,7 @@ export function registerRoutes(app: FastifyInstance) {
             data: {
                 status: smsResult.success ? 'sent' : 'failed',
                 providerMessageId: smsResult.messageId,
-                providerResponse: smsResult.response ?? undefined,
+                providerResponse: smsResult.response != null ? smsResult.response as unknown as Prisma.InputJsonValue : undefined,
                 errorMessage: smsResult.error,
             },
         });
@@ -127,7 +128,7 @@ export function registerRoutes(app: FastifyInstance) {
                 initiatorType: initiatorType ?? 'system',
                 recipient: url,
                 body: JSON.stringify(payload),
-                metadata: { ...metadata, method, headers } as Record<string, unknown>,
+                metadata: { ...metadata, method, headers } as unknown as Prisma.InputJsonValue,
             },
         });
 
@@ -137,7 +138,7 @@ export function registerRoutes(app: FastifyInstance) {
             where: { id: comm.id },
             data: {
                 status: webhookResult.success ? 'sent' : 'failed',
-                providerResponse: webhookResult.response ?? undefined,
+                providerResponse: webhookResult.response != null ? webhookResult.response as unknown as Prisma.InputJsonValue : undefined,
                 errorMessage: webhookResult.error,
             },
         });

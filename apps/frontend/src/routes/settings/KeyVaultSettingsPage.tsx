@@ -163,7 +163,7 @@ export function KeyVaultSettingsPage() {
     // ── Delete secret ──
     const handleDeleteSecret = async (id: string) => {
         try {
-            await api.delete(`/keyvault/secrets/${id}`);
+            await api.del(`/keyvault/secrets/${id}`);
             await fetchData(true);
         } catch (err) {
             console.error('Failed to delete secret', err);
@@ -195,7 +195,7 @@ export function KeyVaultSettingsPage() {
     // ── Delete mapping ──
     const handleDeleteMapping = async (id: string) => {
         try {
-            await api.delete(`/keyvault/mappings/${id}`);
+            await api.del(`/keyvault/mappings/${id}`);
             await fetchData(true);
         } catch (err) {
             console.error('Failed to delete mapping', err);

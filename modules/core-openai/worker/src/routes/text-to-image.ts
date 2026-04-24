@@ -40,7 +40,7 @@ export function registerTextToImageRoutes(app: FastifyInstance) {
                 n,
             });
 
-            const images = response.data.map(img => ({
+            const images = (response.data ?? []).map(img => ({
                 url: img.url,
                 b64_json: img.b64_json,
                 revised_prompt: img.revised_prompt,

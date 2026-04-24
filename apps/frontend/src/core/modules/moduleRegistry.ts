@@ -147,6 +147,20 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
             { id: 'jobs', label: 'Job History', icon: 'History', path: '/jobs' },
         ],
     },
+    {
+        id: 'e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b',
+        slug: 'mental-klarhed',
+        name: 'Mental Klarhed',
+        description: 'Individualiseret terapeutisk forløb med Livshjulet-assessment, AI-genereret PDF og videomanus',
+        icon: 'Brain',
+        color: 'from-sky-500 to-indigo-600',
+        version: '0.1.0',
+        href: '/modules/mental-klarhed',
+        activityItems: [
+            { id: 'programmes', label: 'Forløb', icon: 'LayoutDashboard', path: '' },
+            { id: 'create', label: 'Nyt forløb', icon: 'PlusCircle', path: '' },
+        ],
+    },
 ];
 
 /** Look up a module by its GUID */

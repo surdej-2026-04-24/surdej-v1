@@ -220,9 +220,9 @@ export function registerTestRunnerRoutes(app: FastifyInstance) {
 
                     const tokenUsage: TokenUsage | undefined = usage
                         ? {
-                              promptTokens: usage.promptTokens,
-                              completionTokens: usage.completionTokens,
-                              totalTokens: usage.totalTokens,
+                              promptTokens: usage.inputTokens ?? 0,
+                              completionTokens: usage.outputTokens ?? 0,
+                              totalTokens: usage.totalTokens ?? 0,
                           }
                         : undefined;
 

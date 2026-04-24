@@ -1,5 +1,6 @@
 import type { NatsConnection, Codec } from 'nats';
 import { AckPolicy } from 'nats';
+import { Prisma } from '../node_modules/.prisma/core-comms-client/index.js';
 import {
     NATS_SUBJECTS,
     JETSTREAM_CONFIG,
@@ -95,8 +96,8 @@ export async function startWebhookConsumer() {
                     await prisma.webhookEvent.create({
                         data: {
                             endpointId: event.channelId,
-                            headers: event.headers as Record<string, unknown>,
-                            body: event.body as Record<string, unknown> | null,
+                            headers: event.headers as unknown as Prisma.InputJsonValue,
+                            body: event.body != null ? event.body as unknown as Prisma.InputJsonValue : Prisma.DbNull,
                             sourceIp: event.sourceIp,
                             method: event.method,
                             path: event.path,

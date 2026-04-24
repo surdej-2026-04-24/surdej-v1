@@ -118,6 +118,7 @@ services:
       # Mount only source directories — preserve container's node_modules
       - ./modules/member-feedback/shared/src:/app/modules/member-feedback/shared/src:ro
       - ./modules/member-runbook/shared/src:/app/modules/member-runbook/shared/src:ro
+      - ./modules/mental-klarhed/shared/src:/app/modules/mental-klarhed/shared/src:ro
     environment:
       DATABASE_URL: postgresql://surdej:surdej_dev@postgres:5432/surdej?schema=public
       PORT: "5001"
@@ -152,6 +153,36 @@ services:
         condition: service_healthy
 
   # ─── Module Workers ─────────────────────────────────────────────
+
+  mental-klarhed-worker:
+    build:
+      context: .
+      dockerfile: modules/mental-klarhed/worker/Dockerfile.dev
+    networks: [surdej-internal]
+    volumes:
+      - ./modules/mental-klarhed/shared/src:/app/modules/mental-klarhed/shared/src
+      - ./modules/mental-klarhed/worker/src:/app/modules/mental-klarhed/worker/src
+    environment:
+      NATS_URL: nats://nats:4222
+      DATABASE_URL: postgresql://surdej:surdej_dev@postgres:5432/surdej?schema=public
+      MODULE_PORT: "7010"
+      MODULE_BASE_URL: http://mental-klarhed-worker:7010
+      JWT_SECRET: ${MENTAL_KLARHED_JWT_SECRET:-change-me-in-production}
+      CLIENT_BASE_URL: ${CLIENT_BASE_URL:-http://localhost:5173}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-Asger Steenholdt <asger@asgersteenholdt.com>}
+      NODE_ENV: development
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
   member-nosql-worker:
     build:

@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import { streamText, type CoreMessage } from 'ai';
+import { streamText, type ModelMessage, type LanguageModel } from 'ai';
+
 import { createAzure } from '@ai-sdk/azure';
 import { createOpenAI } from '@ai-sdk/openai';
-import type { LanguageModelV1 } from '@ai-sdk/provider';
 
-function getModel(): LanguageModelV1 {
+function getModel(): LanguageModel {
     if (process.env.AI_PROVIDER !== 'azure') {
         const modelId = process.env.AI_MODEL || 'gpt-4o';
         return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
@@ -141,7 +141,7 @@ export function registerWizardRoutes(app: FastifyInstance) {
             ? '\n\nIMPORTANT: Always respond in Danish (da). All conversational text, question labels, and options must be in Danish. JSON field names (slug, label, type, id, etc.) stay in English.'
             : '';
 
-        const coreMessages: CoreMessage[] = [
+        const coreMessages: ModelMessage[] = [
             { role: 'system', content: SYSTEM_PROMPT + langInstruction },
             ...incomingMessages.map((m: any) => ({ role: m.role as any, content: m.content })),
         ];

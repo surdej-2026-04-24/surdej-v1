@@ -14,7 +14,7 @@
  *   npx tsx src/seed/seed.ts
  */
 
-import { PrismaClient } from '../../node_modules/.prisma/member-nosql-client/index.js';
+import { PrismaClient, Prisma } from '../../node_modules/.prisma/member-nosql-client/index.js';
 
 const prisma = new PrismaClient();
 const TENANT_ID = 'default';
@@ -56,7 +56,7 @@ async function insertDocuments(collectionId: string, docs: Record<string, unknow
             data: {
                 tenantId: TENANT_ID,
                 collectionId,
-                data,
+                data: data as unknown as Prisma.InputJsonValue,
                 version: 1,
                 createdBy: 'seed',
                 updatedBy: 'seed',

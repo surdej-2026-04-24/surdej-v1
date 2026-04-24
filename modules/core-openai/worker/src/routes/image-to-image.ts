@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { toFile } from 'openai';
 import { getOpenAIClient } from '../openai-client.js';
 import {
     ImageToImageRequestSchema,
@@ -35,11 +36,14 @@ export function registerImageToImageRoutes(app: FastifyInstance) {
             const openai = getOpenAIClient();
 
             // Fetch image as file-like for the edit API
-            let imageInput: string;
+            let imageInput: Awaited<ReturnType<typeof toFile>>;
             if (imageUrl) {
-                imageInput = imageUrl;
+                const fetched = await fetch(imageUrl);
+                const buf = Buffer.from(await fetched.arrayBuffer());
+                imageInput = await toFile(buf, 'image.png', { type: 'image/png' });
             } else {
-                imageInput = `data:image/png;base64,${imageBase64}`;
+                const buf = Buffer.from(imageBase64 ?? '', 'base64');
+                imageInput = await toFile(buf, 'image.png', { type: 'image/png' });
             }
 
             const response = await openai.images.edit({
@@ -50,7 +54,7 @@ export function registerImageToImageRoutes(app: FastifyInstance) {
                 n,
             });
 
-            const images = response.data.map(img => ({
+            const images = (response.data ?? []).map(img => ({
                 url: img.url,
                 b64_json: img.b64_json,
             }));

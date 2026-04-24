@@ -194,11 +194,11 @@ const worker = new WorkerBase({
 // ── job.nexi.ingest ─────────────────────────────────────────
 worker.handle<IngestPayload>('job.nexi.ingest', async (job) => {
     const { id, subject, sender, body, receivedAt } = job.payload;
-    worker.log(`[ingest] Processing email ${id}: "${subject}" from ${sender}`);
+    console.log(`[ingest] Processing email ${id}: "${subject}" from ${sender}`);
 
     // Step 1: Detect region
     const region = detectRegion(sender, subject, body);
-    worker.log(`[ingest] Detected region: ${region}`);
+    console.log(`[ingest] Detected region: ${region}`);
 
     // TODO: Persist to laka_dispatch.dispatch_item table
 
@@ -214,13 +214,13 @@ worker.handle<IngestPayload>('job.nexi.ingest', async (job) => {
 // ── job.nexi.classify ───────────────────────────────────────
 worker.handle<ClassifyPayload>('job.nexi.classify', async (job) => {
     const { id, subject, sender, body, region } = job.payload;
-    worker.log(`[classify] Classifying email ${id} for region ${region}`);
+    console.log(`[classify] Classifying email ${id} for region ${region}`);
 
     // Step 2: Check VIP status
     const vipCustomer = checkVip(sender);
     const isVip = vipCustomer !== null;
     if (isVip) {
-        worker.log(`[classify] VIP customer detected: ${vipCustomer!.name} (${vipCustomer!.tier})`);
+        console.log(`[classify] VIP customer detected: ${vipCustomer!.name} (${vipCustomer!.tier})`);
     }
 
     // Step 3: AI classification (simulated)
@@ -231,7 +231,7 @@ worker.handle<ClassifyPayload>('job.nexi.classify', async (job) => {
     // Step 4: Urgency assessment
     const urgency = assessUrgency(subject, body, effectiveCategory, isVip);
 
-    worker.log(`[classify] Result: category=${effectiveCategory}, urgency=${urgency}, confidence=${confidence.toFixed(2)}`);
+    console.log(`[classify] Result: category=${effectiveCategory}, urgency=${urgency}, confidence=${confidence.toFixed(2)}`);
 
     // TODO: Update dispatch_item in database with classification results
 
@@ -249,7 +249,7 @@ worker.handle<ClassifyPayload>('job.nexi.classify', async (job) => {
 // ── job.nexi.route ──────────────────────────────────────────
 worker.handle<RoutePayload>('job.nexi.route', async (job) => {
     const { id, region, category, urgency, isVip, vipCustomer } = job.payload;
-    worker.log(`[route] Routing email ${id}: ${region}/${category}/${urgency}`);
+    console.log(`[route] Routing email ${id}: ${region}/${category}/${urgency}`);
 
     // Step 5: Find matching routing rule
     const rule = ROUTING_RULES.find(
@@ -259,7 +259,7 @@ worker.handle<RoutePayload>('job.nexi.route', async (job) => {
     if (!rule) {
         // Fallback to general queue for the region
         const fallbackQueue = `${region}-General`;
-        worker.log(`[route] No exact rule found, using fallback: ${fallbackQueue}`);
+        console.log(`[route] No exact rule found, using fallback: ${fallbackQueue}`);
         return {
             id,
             targetQueue: fallbackQueue,
@@ -268,7 +268,7 @@ worker.handle<RoutePayload>('job.nexi.route', async (job) => {
         };
     }
 
-    worker.log(`[route] Matched rule → ${rule.targetQueue} (SLA: ${rule.slaMinutes}min)`);
+    console.log(`[route] Matched rule → ${rule.targetQueue} (SLA: ${rule.slaMinutes}min)`);
 
     // TODO: Check queue capacity, overflow if needed
     // TODO: Update dispatch_item with queue assignment
@@ -284,7 +284,7 @@ worker.handle<RoutePayload>('job.nexi.route', async (job) => {
 // ── job.nexi.notify ─────────────────────────────────────────
 worker.handle<NotifyPayload>('job.nexi.notify', async (job) => {
     const { id, targetQueue, subject, urgency, slaMinutes } = job.payload;
-    worker.log(`[notify] Notifying queue ${targetQueue} for email ${id}`);
+    console.log(`[notify] Notifying queue ${targetQueue} for email ${id}`);
 
     // TODO: Send real notification (webhook, email, Slack, etc.)
     // For now, simulate notification
@@ -295,7 +295,7 @@ worker.handle<NotifyPayload>('job.nexi.notify', async (job) => {
         slaDeadline: new Date(Date.now() + slaMinutes * 60_000).toISOString(),
     };
 
-    worker.log(`[notify] Notification sent: ${notification.type} → ${targetQueue}`);
+    console.log(`[notify] Notification sent: ${notification.type} → ${targetQueue}`);
 
     return {
         id,

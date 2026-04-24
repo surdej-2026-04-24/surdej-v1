@@ -78,6 +78,12 @@ import { AdminWorkflowTagsPage } from '@/routes/admin/AdminWorkflowTagsPage';
 import { NosqlAdminPage } from '@/routes/modules/nosql/NosqlAdminPage';
 import { NosqlCollectionPage } from '@/routes/modules/nosql/NosqlCollectionPage';
 
+// ─── Module: Mental Klarhed ────────────────────────────────────
+import { MentalKlarhedAdminPage } from '@/routes/modules/mental-klarhed/MentalKlarhedAdminPage';
+import { MentalKlarhedProgrammePage } from '@/routes/modules/mental-klarhed/MentalKlarhedProgrammePage';
+import { MentalKlarhedClientPortalPage } from '@/routes/modules/mental-klarhed/MentalKlarhedClientPortalPage';
+import { MentalKlarhedAssessmentPage } from '@/routes/modules/mental-klarhed/MentalKlarhedAssessmentPage';
+
 // ─── Domain: Digital Køleskab (Food Tracker) ───────────────────
 import { FoodTrackerDashboardPage } from '@/routes/modules/food-tracker/FoodTrackerDashboardPage';
 import { ReceiptScanPage } from '@/routes/modules/food-tracker/ReceiptScanPage';
@@ -231,6 +237,13 @@ function AuthenticatedApp() {
                     <Route path="modules/nosql/collections" element={<NosqlCollectionPage />} />
                     <Route path="modules/nosql/collections/:collectionId" element={<NosqlCollectionPage />} />
                     <Route path="modules/nosql/documents/:documentId" element={<NosqlCollectionPage />} />
+
+                    {/* ─── Mental Klarhed Module ─── */}
+                    <Route path="modules/mental-klarhed" element={<MentalKlarhedAdminPage />} />
+                    <Route path="modules/mental-klarhed/programmes/:programmeId" element={<MentalKlarhedProgrammePage />} />
+                    {/* Client portal — accessible after magic-link cookie is set */}
+                    <Route path="mental-klarhed/portal" element={<MentalKlarhedClientPortalPage />} />
+                    <Route path="mental-klarhed/assessment/:sessionId" element={<MentalKlarhedAssessmentPage />} />
 
                     {/* ─── Digital Køleskab (Food Tracker) Module ─── */}
                     <Route path="modules/food-tracker" element={<FoodTrackerDashboardPage />} />

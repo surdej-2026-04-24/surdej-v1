@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import { connect, JSONCodec } from 'nats';
 import { MODULE_NAME, NATS_SUBJECTS } from '@surdej/module-core-issues-shared';
 import { registerRoutes } from './routes.js';
@@ -14,6 +15,7 @@ const MODULE_BASE_URL = process.env.MODULE_BASE_URL ?? `http://localhost:${PORT}
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
+await app.register(multipart);
 registerRoutes(app);
 
 // ─── NATS Self-Registration ───

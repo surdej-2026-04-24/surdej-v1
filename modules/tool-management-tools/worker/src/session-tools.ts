@@ -55,19 +55,20 @@ const ALL_TOOLS = {
     search_web: tool({
         description:
             'Search the internet for current information. Use when you need factual data, recent events, or the user asks to look something up online. Returns results with source URLs.',
-        parameters: z.object({
+        inputSchema: z.object({
             query: z.string().describe('Search query — be specific and include key terms'),
             maxResults: z
                 .number()
                 .int()
                 .min(1)
                 .max(10)
-                .default(5)
+                .optional()
                 .describe('Number of results to return'),
         }),
-        execute: async ({ query, maxResults }: { query: string; maxResults: number }) => {
-            console.log(`[search_web] Searching: "${query}" (max=${maxResults})`);
-            const results = await searxngSearch(query, maxResults);
+        execute: async ({ query, maxResults }) => {
+            const n = maxResults ?? 5;
+            console.log(`[search_web] Searching: "${query}" (max=${n})`);
+            const results = await searxngSearch(query, n);
             if (results.length === 0) {
                 return { query, resultCount: 0, sources: [] as never[] };
             }
@@ -88,12 +89,12 @@ const ALL_TOOLS = {
     web_search: tool({
         description:
             'Search the internet (alias for search_web). Use when you need to find information online.',
-        parameters: z.object({
+        inputSchema: z.object({
             query: z.string().describe('Search query'),
-            maxResults: z.number().int().min(1).max(10).default(5),
+            maxResults: z.number().int().min(1).max(10).optional(),
         }),
-        execute: async ({ query, maxResults }: { query: string; maxResults: number }) => {
-            const results = await searxngSearch(query, maxResults);
+        execute: async ({ query, maxResults }) => {
+            const results = await searxngSearch(query, maxResults ?? 5);
             if (results.length === 0) {
                 return { query, resultCount: 0, sources: [] as never[] };
             }
@@ -110,7 +111,7 @@ const ALL_TOOLS = {
             };
         },
     }),
-} as const;
+};
 
 type ToolName = keyof typeof ALL_TOOLS;
 
