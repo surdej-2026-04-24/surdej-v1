@@ -83,6 +83,9 @@ import { FoodTrackerDashboardPage } from '@/routes/modules/food-tracker/FoodTrac
 import { ReceiptScanPage } from '@/routes/modules/food-tracker/ReceiptScanPage';
 import { RecipeSuggestionsPage } from '@/routes/modules/food-tracker/RecipeSuggestionsPage';
 
+// ─── Domain: Poster Tracker ────────────────────────────────────
+import { PosterTrackerDashboardPage } from '@/routes/modules/poster-tracker/PosterTrackerDashboardPage';
+
 // ─── Hub Pages ─────────────────────────────────────────────────
 import { PlatformPage } from '@/routes/platform/PlatformPage';
 import { HealthDashboardPage } from '@/routes/platform/HealthDashboardPage';
@@ -227,6 +230,9 @@ function AuthenticatedApp() {
                     <Route path="modules/food-tracker" element={<FoodTrackerDashboardPage />} />
                     <Route path="modules/food-tracker/scan" element={<ReceiptScanPage />} />
                     <Route path="modules/food-tracker/recipes" element={<RecipeSuggestionsPage />} />
+
+                    {/* ─── Poster Tracker Module ─── */}
+                    <Route path="modules/poster-tracker" element={<PosterTrackerDashboardPage />} />
 
                     {/* ─── Core Issues Module ─── */}
                     <Route path="modules/core-issues" element={<ModuleLayout />}>

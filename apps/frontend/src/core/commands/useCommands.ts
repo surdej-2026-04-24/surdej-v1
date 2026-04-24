@@ -282,6 +282,15 @@ export function useCoreCommands() {
                 icon: 'ChefHat',
                 execute: () => navigate('/modules/food-tracker/recipes'),
             },
+
+            // ─── Poster Tracker ───
+            {
+                id: 'domain.poster-tracker.dashboard',
+                label: 'Poster Tracker — Dashboard',
+                group: 'Poster Tracker',
+                icon: 'MapPin',
+                execute: () => navigate('/modules/poster-tracker'),
+            },
         ];
 
         for (const cmd of commands) {
