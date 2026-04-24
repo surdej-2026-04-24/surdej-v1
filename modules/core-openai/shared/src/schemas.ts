@@ -92,6 +92,7 @@ export type TextToImageResponse = z.infer<typeof TextToImageResponseSchema>;
 export const ImageToTextRequestSchema = z.object({
     imageUrl: z.string().url().optional(),
     imageBase64: z.string().optional(),
+    imageMimeType: z.string().optional(),
     prompt: z.string().default('Describe this image in detail.'),
     model: z.enum(['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini']).default('gpt-4o'),
     maxTokens: z.number().int().min(1).max(16384).default(1024),

@@ -6,9 +6,9 @@ import {
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
+import { fileToBase64 } from './scanUtils';
 
-// ─── Simulated OCR / AI parsing ───────────────────────────────────────────────
-// In production this would call an AI endpoint (e.g. Azure OpenAI vision API).
+// ─── AI receipt parsing ────────────────────────────────────────────────────────
 
 interface ParsedReceiptItem {
     name: string;
@@ -17,28 +17,50 @@ interface ParsedReceiptItem {
     estimatedExpiry: string | null; // ISO date
 }
 
-const DEMO_ITEMS: ParsedReceiptItem[] = [
-    { name: 'Minimælk 1 L', quantity: '2 stk', category: 'Mejeri', estimatedExpiry: offsetDate(7) },
-    { name: 'Smør 500g', quantity: '1 stk', category: 'Mejeri', estimatedExpiry: offsetDate(30) },
-    { name: 'Kyllingefilet', quantity: '500g', category: 'Kød & Fisk', estimatedExpiry: offsetDate(3) },
-    { name: 'Gulerødder', quantity: '1 pose', category: 'Grøntsager & Frugt', estimatedExpiry: offsetDate(14) },
-    { name: 'Appelsinjuice', quantity: '1 L', category: 'Drikkevarer', estimatedExpiry: offsetDate(10) },
-    { name: 'Fuldkornsbrød', quantity: '1 stk', category: 'Brød & Bagværk', estimatedExpiry: offsetDate(5) },
-];
+const RECEIPT_PROMPT = `Du er en kvitteringsscanner. Analyser dette billede af en kvittering og udtræk alle varer.
+Returner KUN et gyldigt JSON array uden yderligere tekst. Hvert element skal have:
+- "name": produktnavn som vist på kvitteringen (string)
+- "quantity": mængde/antal f.eks. "2 stk", "500g", "1 L" (string)
+- "category": én af: "Mejeri", "Kød & Fisk", "Grøntsager & Frugt", "Drikkevarer", "Brød & Bagværk", "Frost", "Kolonial", "Hygiejne & Rengøring", "Andet"
+- "estimatedExpiry": estimeret udløbsdato som YYYY-MM-DD baseret på produkttype, eller null
 
-function offsetDate(days: number): string {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
+Eksempel: [{"name":"Minimælk 1 L","quantity":"2 stk","category":"Mejeri","estimatedExpiry":"2025-05-01"}]`;
+
+async function scanReceiptWithAI(file: File): Promise<ParsedReceiptItem[]> {
+    const imageBase64 = await fileToBase64(file);
+
+    const res = await fetch('/api/module/core-openai/image-to-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            imageBase64,
+            imageMimeType: file.type || 'image/jpeg',
+            prompt: RECEIPT_PROMPT,
+            model: 'gpt-4o',
+            maxTokens: 2048,
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error(`AI analyse fejlede: ${res.status}`);
+    }
+
+    const data = await res.json() as { description: string };
+    const text = data.description.trim();
+
+    // Extract JSON array from the response (handle markdown code blocks if present)
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+
+    try {
+        const items = JSON.parse(jsonMatch[0]) as ParsedReceiptItem[];
+        return Array.isArray(items) ? items : [];
+    } catch {
+        throw new Error('AI returnerede ugyldigt format. Prøv igen.');
+    }
 }
 
-function simulateOcr(): Promise<ParsedReceiptItem[]> {
-    return new Promise(resolve => setTimeout(() => resolve(DEMO_ITEMS), 2000));
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Step = 'upload' | 'scanning' | 'review' | 'done';
+type Step = 'upload' | 'scanning' | 'review' | 'done' | 'error';
 
 interface ReviewItem extends ParsedReceiptItem {
     id: string;
@@ -79,27 +101,34 @@ export function ReceiptScanPage() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
     const [addedCount, setAddedCount] = useState(0);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    const processFile = useCallback(async (file: File) => {
+        setPreviewUrl(URL.createObjectURL(file));
+        setStep('scanning');
+        setErrorMessage(null);
+        try {
+            const parsed = await scanReceiptWithAI(file);
+            setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
+            setStep('review');
+        } catch (err) {
+            setErrorMessage(err instanceof Error ? err.message : 'Ukendt fejl');
+            setStep('error');
+        }
+    }, []);
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        setPreviewUrl(URL.createObjectURL(file));
-        setStep('scanning');
-
-        const parsed = await simulateOcr();
-        setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
-        setStep('review');
-    }, []);
+        await processFile(file);
+    }, [processFile]);
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
         if (!file) return;
-        const syntheticEvent = {
-            target: { files: [file] },
-        } as unknown as React.ChangeEvent<HTMLInputElement>;
-        handleFileChange(syntheticEvent);
-    }, [handleFileChange]);
+        processFile(file);
+    }, [processFile]);
 
     const toggleItem = useCallback((id: string) => {
         setReviewItems(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r));
@@ -356,6 +385,20 @@ export function ReceiptScanPage() {
                                 Se køleskabet
                             </button>
                         </div>
+                    </div>
+                )}
+
+                {/* ── Step: Error ── */}
+                {step === 'error' && (
+                    <div style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center' }}>
+                        <p style={{ fontSize: 40, margin: '0 auto 16px' }}>⚠️</p>
+                        <p style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>Scanning fejlede</p>
+                        <p style={{ fontSize: 14, color: 'var(--muted-foreground, #6b7280)', margin: '0 0 24px' }}>
+                            {errorMessage ?? 'Kunne ikke analysere kvitteringen. Prøv igen med et tydeligere billede.'}
+                        </p>
+                        <button onClick={handleReset} style={primaryBtnStyle}>
+                            <RefreshCw size={14} /> Prøv igen
+                        </button>
                     </div>
                 )}
             </div>
