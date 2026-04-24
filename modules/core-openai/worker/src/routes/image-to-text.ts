@@ -15,7 +15,7 @@ export function registerImageToTextRoutes(app: FastifyInstance) {
             return reply.status(400).send({ error: result.error.issues });
         }
 
-        const { imageUrl, imageBase64, prompt, model, maxTokens } = result.data;
+        const { imageUrl, imageBase64, imageMimeType, prompt, model, maxTokens } = result.data;
         const jobId = crypto.randomUUID();
         const now = new Date().toISOString();
 
@@ -37,7 +37,7 @@ export function registerImageToTextRoutes(app: FastifyInstance) {
             const imageContent: { type: 'image_url'; image_url: { url: string; detail: 'auto' } } = {
                 type: 'image_url',
                 image_url: {
-                    url: imageUrl ?? `data:image/png;base64,${imageBase64}`,
+                    url: imageUrl ?? `data:${imageMimeType ?? 'image/jpeg'};base64,${imageBase64}`,
                     detail: 'auto',
                 },
             };
