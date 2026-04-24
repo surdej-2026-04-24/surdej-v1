@@ -27,6 +27,11 @@ export const manifest: DomainManifest = {
             icon: 'ScanLine',
         },
         {
+            id: 'domain.food-tracker.scan-expiry',
+            title: 'Digital Køleskab — Scan Udløbsdato',
+            icon: 'Camera',
+        },
+        {
             id: 'domain.food-tracker.recipes',
             title: 'Digital Køleskab — Opskriftforslag',
             icon: 'ChefHat',
@@ -44,6 +49,11 @@ export const manifest: DomainManifest = {
             component: 'ReceiptScanPage',
         },
         {
+            path: '/modules/food-tracker/scan-expiry',
+            commandId: 'domain.food-tracker.scan-expiry',
+            component: 'ExpiryDateScanPage',
+        },
+        {
             path: '/modules/food-tracker/recipes',
             commandId: 'domain.food-tracker.recipes',
             component: 'RecipeSuggestionsPage',
@@ -52,7 +62,8 @@ export const manifest: DomainManifest = {
     sidebarItems: [
         { commandId: 'domain.food-tracker.dashboard', group: 'Digital Køleskab', order: 1 },
         { commandId: 'domain.food-tracker.scan', group: 'Digital Køleskab', order: 2 },
-        { commandId: 'domain.food-tracker.recipes', group: 'Digital Køleskab', order: 3 },
+        { commandId: 'domain.food-tracker.scan-expiry', group: 'Digital Køleskab', order: 3 },
+        { commandId: 'domain.food-tracker.recipes', group: 'Digital Køleskab', order: 4 },
     ],
     activateOn: 'isAuthenticated',
 };

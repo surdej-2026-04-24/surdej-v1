@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
     Refrigerator, ScanLine, ChefHat, Plus, Trash2, CheckSquare, Square,
-    AlertTriangle, Clock, CheckCircle2, HelpCircle, Search, X,
+    AlertTriangle, Clock, CheckCircle2, HelpCircle, Search, X, Camera,
 } from 'lucide-react';
 import {
     loadFridgeItems, saveFridgeItems, getExpiryStatus, daysUntilExpiry,
@@ -286,6 +286,12 @@ export function FoodTrackerDashboardPage() {
                         style={{ ...secondaryBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                     >
                         <ScanLine size={14} /> Scan kvittering
+                    </button>
+                    <button
+                        onClick={() => navigate('/modules/food-tracker/scan-expiry')}
+                        style={{ ...secondaryBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                        <Camera size={14} /> Scan udløbsdato
                     </button>
                     <button
                         onClick={() => navigate('/modules/food-tracker/recipes')}
