@@ -6,6 +6,7 @@ import {
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
+import { fileToBase64 } from './scanUtils';
 
 // ─── AI receipt parsing ────────────────────────────────────────────────────────
 
@@ -24,20 +25,6 @@ Returner KUN et gyldigt JSON array uden yderligere tekst. Hvert element skal hav
 - "estimatedExpiry": estimeret udløbsdato som YYYY-MM-DD baseret på produkttype, eller null
 
 Eksempel: [{"name":"Minimælk 1 L","quantity":"2 stk","category":"Mejeri","estimatedExpiry":"2025-05-01"}]`;
-
-async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const result = reader.result as string;
-            // Strip the data URI prefix (e.g. "data:image/jpeg;base64,")
-            const base64 = result.split(',')[1];
-            resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
 
 async function scanReceiptWithAI(file: File): Promise<ParsedReceiptItem[]> {
     const imageBase64 = await fileToBase64(file);
@@ -65,11 +52,13 @@ async function scanReceiptWithAI(file: File): Promise<ParsedReceiptItem[]> {
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) return [];
 
-    const items = JSON.parse(jsonMatch[0]) as ParsedReceiptItem[];
-    return Array.isArray(items) ? items : [];
+    try {
+        const items = JSON.parse(jsonMatch[0]) as ParsedReceiptItem[];
+        return Array.isArray(items) ? items : [];
+    } catch {
+        throw new Error('AI returnerede ugyldigt format. Prøv igen.');
+    }
 }
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Step = 'upload' | 'scanning' | 'review' | 'done' | 'error';
 
