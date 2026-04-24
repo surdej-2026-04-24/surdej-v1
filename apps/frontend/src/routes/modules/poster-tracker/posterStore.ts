@@ -27,9 +27,7 @@ export function loadPosters(): PosterEntry[] {
                 typeof e.timestamp === 'string',
         ).map((e) => ({
             ...e,
-            lat: Number(e.lat),
-            lng: Number(e.lng),
-            accuracy: e.accuracy != null ? Number(e.accuracy) : null,
+            accuracy: e.accuracy != null && isFinite(Number(e.accuracy)) ? Number(e.accuracy) : null,
             note: typeof e.note === 'string' ? e.note : '',
         }));
     } catch {
