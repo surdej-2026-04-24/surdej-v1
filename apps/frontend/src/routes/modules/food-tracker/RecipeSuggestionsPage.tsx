@@ -170,7 +170,7 @@ function getRelevantRecipes(items: FridgeItem[]): Recipe[] {
     const scored = RECIPE_BANK.map(recipe => {
         let score = 0;
         for (const ing of recipe.usedIngredients) {
-            if (names.some(n => n.includes(ing) || ing.includes(n.split(' ')[0] ?? ''))) score += 2;
+            if (names.some(n => n.includes(ing) || ing.includes(n.split(' ')[0]))) score += 2;
         }
         if (hasExpiring && recipe.usesExpiring) score += 3;
         return { recipe, score };
