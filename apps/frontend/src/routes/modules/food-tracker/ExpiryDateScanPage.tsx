@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import {
     Camera, Upload, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw,
 } from 'lucide-react';
+import { CameraCapture } from './CameraCapture';
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
@@ -98,13 +99,13 @@ const secondaryBtnStyle: React.CSSProperties = {
 export function ExpiryDateScanPage() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<Step>('upload');
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
     const [addedCount, setAddedCount] = useState(0);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [cameraOpen, setCameraOpen] = useState(false);
 
     const processFile = useCallback(async (file: File) => {
         setPreviewUrl(URL.createObjectURL(file));
@@ -170,11 +171,21 @@ export function ExpiryDateScanPage() {
         setPreviewUrl(null);
         setReviewItems([]);
         if (fileInputRef.current) fileInputRef.current.value = '';
-        if (cameraInputRef.current) cameraInputRef.current.value = '';
     }, []);
+
+    const handleCameraCapture = useCallback((file: File) => {
+        setCameraOpen(false);
+        processFile(file);
+    }, [processFile]);
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {cameraOpen && (
+                <CameraCapture
+                    onCapture={handleCameraCapture}
+                    onClose={() => setCameraOpen(false)}
+                />
+            )}
             {/* Header */}
             <div style={{
                 padding: '16px 24px',
@@ -208,7 +219,7 @@ export function ExpiryDateScanPage() {
                     <div style={{ maxWidth: 560, margin: '0 auto' }}>
                         {/* Camera capture button (prominent on mobile) */}
                         <button
-                            onClick={() => cameraInputRef.current?.click()}
+                            onClick={() => setCameraOpen(true)}
                             style={{
                                 ...primaryBtnStyle,
                                 width: '100%', justifyContent: 'center',
@@ -246,14 +257,6 @@ export function ExpiryDateScanPage() {
                         </div>
 
                         {/* Hidden inputs */}
-                        <input
-                            ref={cameraInputRef}
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={handleFileChange}
-                            style={{ display: 'none' }}
-                        />
                         <input
                             ref={fileInputRef}
                             type="file"

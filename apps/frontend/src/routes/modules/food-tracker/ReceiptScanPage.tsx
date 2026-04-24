@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import {
     ScanLine, Upload, Camera, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw, AlertCircle,
 } from 'lucide-react';
+import { CameraCapture } from './CameraCapture';
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
@@ -89,13 +90,13 @@ const secondaryBtnStyle: React.CSSProperties = {
 export function ReceiptScanPage() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<Step>('upload');
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
     const [addedCount, setAddedCount] = useState(0);
     const [scanError, setScanError] = useState<string | null>(null);
+    const [cameraOpen, setCameraOpen] = useState(false);
 
     const processFile = useCallback(async (file: File) => {
         setPreviewUrl(URL.createObjectURL(file));
@@ -117,17 +118,22 @@ export function ReceiptScanPage() {
         setStep('review');
     }, []);
 
+    const handleCameraCapture = useCallback((file: File) => {
+        setCameraOpen(false);
+        processFile(file);
+    }, [processFile]);
+
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         await processFile(file);
     }, [processFile]);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
         if (!file) return;
-        processFile(file);
+        await processFile(file);
     }, [processFile]);
 
     const toggleItem = useCallback((id: string) => {
@@ -168,11 +174,16 @@ export function ReceiptScanPage() {
         setReviewItems([]);
         setScanError(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
-        if (cameraInputRef.current) cameraInputRef.current.value = '';
     }, []);
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {cameraOpen && (
+                <CameraCapture
+                    onCapture={handleCameraCapture}
+                    onClose={() => setCameraOpen(false)}
+                />
+            )}
             {/* Header */}
             <div style={{
                 padding: '16px 24px',
@@ -206,7 +217,7 @@ export function ReceiptScanPage() {
                     <div style={{ maxWidth: 560, margin: '0 auto' }}>
                         {/* Camera capture button (prominent on mobile) */}
                         <button
-                            onClick={() => cameraInputRef.current?.click()}
+                            onClick={() => setCameraOpen(true)}
                             style={{
                                 ...primaryBtnStyle,
                                 width: '100%', justifyContent: 'center',
@@ -241,14 +252,6 @@ export function ReceiptScanPage() {
                                 <Upload size={14} /> Vælg fil
                             </button>
                         </div>
-                        <input
-                            ref={cameraInputRef}
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={handleFileChange}
-                            style={{ display: 'none' }}
-                        />
                         <input
                             ref={fileInputRef}
                             type="file"
