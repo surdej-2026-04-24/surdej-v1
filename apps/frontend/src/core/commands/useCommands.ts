@@ -282,6 +282,15 @@ export function useCoreCommands() {
                 icon: 'ChefHat',
                 execute: () => navigate('/modules/food-tracker/recipes'),
             },
+
+            // ─── Opskrift-Konverter (Pattern Converter) ───
+            {
+                id: 'domain.converter.page',
+                label: 'Opskrift-Konverter — Modernisér Strikkeopskrift',
+                group: 'Opskrift-Konverter',
+                icon: 'RefreshCw',
+                execute: () => navigate('/modules/converter'),
+            },
         ];
 
         for (const cmd of commands) {
