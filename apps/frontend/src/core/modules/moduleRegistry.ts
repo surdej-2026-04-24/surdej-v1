@@ -108,6 +108,19 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
         ],
     },
     {
+        id: 'd9e0f1a2-3b4c-5d6e-7f8a-9b0c1d2e3f4a',
+        slug: 'poster-tracker',
+        name: 'Poster Tracker',
+        description: 'Track poster placement locations with one-tap GPS registration',
+        icon: 'MapPin',
+        color: 'from-orange-500 to-red-500',
+        version: '0.1.0',
+        href: '/modules/poster-tracker',
+        activityItems: [
+            { id: 'dashboard', label: 'Dashboard', icon: 'MapPin', path: '' },
+        ],
+    },
+    {
         id: 'b8c9d0e1-2f3a-4b5c-6d7e-8f9a0b1c2d3e',
         slug: 'core-openai',
         name: 'AI Studio',
