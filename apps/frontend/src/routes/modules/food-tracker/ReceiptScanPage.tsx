@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
-    ScanLine, Upload, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw,
+    Camera, ScanLine, Upload, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw,
 } from 'lucide-react';
+import { CameraCapture } from './CameraCapture';
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
@@ -79,27 +80,28 @@ export function ReceiptScanPage() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
     const [addedCount, setAddedCount] = useState(0);
+    const [cameraOpen, setCameraOpen] = useState(false);
 
-    const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const processFile = useCallback(async (file: File) => {
         setPreviewUrl(URL.createObjectURL(file));
         setStep('scanning');
-
         const parsed = await simulateOcr();
         setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
         setStep('review');
     }, []);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
+    const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        await processFile(file);
+    }, [processFile]);
+
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
         if (!file) return;
-        const syntheticEvent = {
-            target: { files: [file] },
-        } as unknown as React.ChangeEvent<HTMLInputElement>;
-        handleFileChange(syntheticEvent);
-    }, [handleFileChange]);
+        await processFile(file);
+    }, [processFile]);
 
     const toggleItem = useCallback((id: string) => {
         setReviewItems(prev => prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r));
@@ -139,8 +141,19 @@ export function ReceiptScanPage() {
         if (fileInputRef.current) fileInputRef.current.value = '';
     }, []);
 
+    const handleCameraCapture = useCallback((file: File) => {
+        setCameraOpen(false);
+        processFile(file);
+    }, [processFile]);
+
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {cameraOpen && (
+                <CameraCapture
+                    onCapture={handleCameraCapture}
+                    onClose={() => setCameraOpen(false)}
+                />
+            )}
             {/* Header */}
             <div style={{
                 padding: '16px 24px',
@@ -172,6 +185,19 @@ export function ReceiptScanPage() {
                 {/* ── Step: Upload ── */}
                 {step === 'upload' && (
                     <div style={{ maxWidth: 560, margin: '0 auto' }}>
+                        {/* Camera capture button (prominent on mobile) */}
+                        <button
+                            onClick={() => setCameraOpen(true)}
+                            style={{
+                                ...primaryBtnStyle,
+                                width: '100%', justifyContent: 'center',
+                                padding: '14px 20px', fontSize: 15, borderRadius: 10,
+                                marginBottom: 16,
+                            }}
+                        >
+                            <Camera size={18} /> Tag billede med kamera
+                        </button>
+
                         <div
                             onDrop={handleDrop}
                             onDragOver={e => e.preventDefault()}
