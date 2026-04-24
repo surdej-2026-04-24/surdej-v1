@@ -286,10 +286,31 @@ export function useCoreCommands() {
             // ─── Poster Tracker ───
             {
                 id: 'domain.poster-tracker.dashboard',
-                label: 'Poster Tracker — Dashboard',
-                group: 'Poster Tracker',
+                label: 'Valgplakater — Oversigt',
+                group: 'Valgplakater',
                 icon: 'MapPin',
                 execute: () => navigate('/modules/poster-tracker'),
+            },
+            {
+                id: 'domain.poster-tracker.add',
+                label: 'Valgplakater — Tilføj Plakat',
+                group: 'Valgplakater',
+                icon: 'Plus',
+                execute: () => navigate('/modules/poster-tracker/add'),
+            },
+            {
+                id: 'domain.poster-tracker.teams',
+                label: 'Valgplakater — Teams & Organisationer',
+                group: 'Valgplakater',
+                icon: 'Users',
+                execute: () => navigate('/modules/poster-tracker/teams'),
+            },
+            {
+                id: 'domain.poster-tracker.pant',
+                label: 'Valgplakater — Pant (til salg)',
+                group: 'Valgplakater',
+                icon: 'Coins',
+                execute: () => navigate('/modules/poster-tracker/pant'),
             },
         ];
 

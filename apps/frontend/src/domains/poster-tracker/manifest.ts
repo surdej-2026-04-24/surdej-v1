@@ -12,14 +12,29 @@ interface DomainManifest {
 }
 
 export const manifest: DomainManifest = {
-    version: '0.1.0',
+    version: '0.2.0',
     id: 'poster-tracker',
-    name: 'Poster Tracker',
+    name: 'Valgplakater',
     commands: [
         {
             id: 'domain.poster-tracker.dashboard',
-            title: 'Poster Tracker — Dashboard',
+            title: 'Valgplakater — Oversigt',
             icon: 'MapPin',
+        },
+        {
+            id: 'domain.poster-tracker.add',
+            title: 'Valgplakater — Tilføj Plakat',
+            icon: 'Plus',
+        },
+        {
+            id: 'domain.poster-tracker.teams',
+            title: 'Valgplakater — Teams & Organisationer',
+            icon: 'Users',
+        },
+        {
+            id: 'domain.poster-tracker.pant',
+            title: 'Valgplakater — Pant (til salg)',
+            icon: 'Coins',
         },
     ],
     routes: [
@@ -28,9 +43,27 @@ export const manifest: DomainManifest = {
             commandId: 'domain.poster-tracker.dashboard',
             component: 'PosterTrackerDashboardPage',
         },
+        {
+            path: '/modules/poster-tracker/add',
+            commandId: 'domain.poster-tracker.add',
+            component: 'PosterAddPage',
+        },
+        {
+            path: '/modules/poster-tracker/teams',
+            commandId: 'domain.poster-tracker.teams',
+            component: 'PosterTeamsPage',
+        },
+        {
+            path: '/modules/poster-tracker/pant',
+            commandId: 'domain.poster-tracker.pant',
+            component: 'PosterPantPage',
+        },
     ],
     sidebarItems: [
-        { commandId: 'domain.poster-tracker.dashboard', group: 'Poster Tracker', order: 1 },
+        { commandId: 'domain.poster-tracker.dashboard', group: 'Valgplakater', order: 1 },
+        { commandId: 'domain.poster-tracker.add', group: 'Valgplakater', order: 2 },
+        { commandId: 'domain.poster-tracker.teams', group: 'Valgplakater', order: 3 },
+        { commandId: 'domain.poster-tracker.pant', group: 'Valgplakater', order: 4 },
     ],
     activateOn: 'isAuthenticated',
 };
