@@ -7,6 +7,7 @@ export interface FridgeItem {
     name: string;
     quantity: string;
     category: string;
+    price: string | null;     // price as shown on receipt, null if unknown
     purchasedAt: string;   // ISO date string
     expiresAt: string | null; // ISO date string, null if unknown
     opened: boolean;

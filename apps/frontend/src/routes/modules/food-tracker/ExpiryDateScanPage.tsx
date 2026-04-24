@@ -122,6 +122,7 @@ export function ExpiryDateScanPage() {
                 id: crypto.randomUUID(),
                 name: r.name,
                 quantity: r.quantity,
+                price: null,
                 category: r.category,
                 purchasedAt: new Date().toISOString().slice(0, 10),
                 expiresAt: r.expiryDate,
