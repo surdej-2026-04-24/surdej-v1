@@ -20,10 +20,17 @@ interface ParsedReceiptItem {
 const DEMO_ITEMS: ParsedReceiptItem[] = [
     { name: 'Minimælk 1 L', quantity: '2 stk', category: 'Mejeri', estimatedExpiry: offsetDate(7) },
     { name: 'Smør 500g', quantity: '1 stk', category: 'Mejeri', estimatedExpiry: offsetDate(30) },
+    { name: 'Æg 10 stk', quantity: '1 bakke', category: 'Mejeri', estimatedExpiry: offsetDate(21) },
     { name: 'Kyllingefilet', quantity: '500g', category: 'Kød & Fisk', estimatedExpiry: offsetDate(3) },
-    { name: 'Gulerødder', quantity: '1 pose', category: 'Grøntsager & Frugt', estimatedExpiry: offsetDate(14) },
-    { name: 'Appelsinjuice', quantity: '1 L', category: 'Drikkevarer', estimatedExpiry: offsetDate(10) },
-    { name: 'Fuldkornsbrød', quantity: '1 stk', category: 'Brød & Bagværk', estimatedExpiry: offsetDate(5) },
+    { name: 'Bacon', quantity: '200g', category: 'Kød & Fisk', estimatedExpiry: offsetDate(10) },
+    { name: 'Gulerødder 1 kg', quantity: '1 pose', category: 'Grøntsager & Frugt', estimatedExpiry: offsetDate(14) },
+    { name: 'Tomater', quantity: '500g', category: 'Grøntsager & Frugt', estimatedExpiry: offsetDate(5) },
+    { name: 'Appelsinjuice 1 L', quantity: '1 stk', category: 'Drikkevarer', estimatedExpiry: offsetDate(10) },
+    { name: 'Cola 1,5 L', quantity: '2 stk', category: 'Drikkevarer', estimatedExpiry: offsetDate(365) },
+    { name: 'Rugbrød 1,1 kg', quantity: '1 stk', category: 'Brød & Bagværk', estimatedExpiry: offsetDate(7) },
+    { name: 'Franskbrød', quantity: '1 stk', category: 'Brød & Bagværk', estimatedExpiry: offsetDate(4) },
+    { name: 'Chips', quantity: '175g', category: 'Slik & Snacks', estimatedExpiry: offsetDate(60) },
+    { name: 'Vingummibamser', quantity: '200g', category: 'Slik & Snacks', estimatedExpiry: offsetDate(180) },
 ];
 
 function offsetDate(days: number): string {

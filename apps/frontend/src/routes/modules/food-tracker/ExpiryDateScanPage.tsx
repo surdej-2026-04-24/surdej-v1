@@ -27,8 +27,12 @@ function offsetDate(days: number): string {
 const DEMO_ITEMS: ParsedExpiryItem[] = [
     { name: 'Minimælk 1 L', quantity: '1 stk', category: 'Mejeri', expiryDate: offsetDate(8) },
     { name: 'Smør 500g', quantity: '1 stk', category: 'Mejeri', expiryDate: offsetDate(32) },
+    { name: 'Æg 10 stk', quantity: '1 bakke', category: 'Mejeri', expiryDate: offsetDate(18) },
     { name: 'Kyllingefilet', quantity: '500g', category: 'Kød & Fisk', expiryDate: offsetDate(3) },
-    { name: 'Appelsinjuice', quantity: '1 L', category: 'Drikkevarer', expiryDate: offsetDate(11) },
+    { name: 'Rugbrød 1,1 kg', quantity: '1 stk', category: 'Brød & Bagværk', expiryDate: offsetDate(7) },
+    { name: 'Appelsinjuice 1 L', quantity: '1 stk', category: 'Drikkevarer', expiryDate: offsetDate(11) },
+    { name: 'Sodavand 6-pak', quantity: '1 pak', category: 'Drikkevarer', expiryDate: offsetDate(365) },
+    { name: 'Vingummibamser', quantity: '200g', category: 'Slik & Snacks', expiryDate: offsetDate(180) },
 ];
 
 function simulateVisionScan(): Promise<ParsedExpiryItem[]> {
