@@ -6,7 +6,7 @@ export interface PosterEntry {
     id: string;
     lat: number;
     lng: number;
-    accuracy: number | null; // metres
+    accuracy: number | null; // meters
     timestamp: string;       // ISO date-time
     note: string;
 }
@@ -17,7 +17,21 @@ export function loadPosters(): PosterEntry[] {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return [];
-        return JSON.parse(raw) as PosterEntry[];
+        const parsed = JSON.parse(raw) as PosterEntry[];
+        // Validate and sanitize numeric fields to prevent injection from tampered storage
+        return parsed.filter(
+            (e) =>
+                typeof e.id === 'string' &&
+                typeof e.lat === 'number' && isFinite(e.lat) &&
+                typeof e.lng === 'number' && isFinite(e.lng) &&
+                typeof e.timestamp === 'string',
+        ).map((e) => ({
+            ...e,
+            lat: Number(e.lat),
+            lng: Number(e.lng),
+            accuracy: e.accuracy != null ? Number(e.accuracy) : null,
+            note: typeof e.note === 'string' ? e.note : '',
+        }));
     } catch {
         return [];
     }

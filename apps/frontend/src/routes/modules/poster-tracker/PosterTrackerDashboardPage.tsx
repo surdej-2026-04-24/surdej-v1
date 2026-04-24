@@ -164,7 +164,7 @@ export function PosterTrackerDashboardPage() {
                     >
                         {gpsState === 'locating' ? (
                             <>
-                                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                                <Loader2 size={16} className="animate-spin" />
                                 Getting location…
                             </>
                         ) : (
@@ -211,9 +211,6 @@ export function PosterTrackerDashboardPage() {
                     ))}
                 </div>
             )}
-
-            {/* Spin keyframe injected inline */}
-            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }
@@ -261,7 +258,7 @@ function PosterCard({ entry, index, isNew, onDelete }: PosterCardProps) {
                 </div>
                 {entry.accuracy != null && (
                     <div style={{ fontSize: 11, color: 'var(--muted-foreground, #9ca3af)', marginBottom: 4 }}>
-                        ±{Math.round(entry.accuracy)} m accuracy
+                        ±{Math.round(entry.accuracy)} meters accuracy
                     </div>
                 )}
                 {entry.note && (
@@ -276,9 +273,9 @@ function PosterCard({ entry, index, isNew, onDelete }: PosterCardProps) {
                 <div style={{ fontSize: 11, color: 'var(--muted-foreground, #9ca3af)' }}>
                     {dateStr} · {timeStr}
                 </div>
-                {/* OpenStreetMap link */}
+                {/* OpenStreetMap link — lat/lng cast to numbers to prevent injection */}
                 <a
-                    href={`https://www.openstreetmap.org/?mlat=${entry.lat}&mlon=${entry.lng}&zoom=18`}
+                    href={`https://www.openstreetmap.org/?mlat=${Number(entry.lat).toFixed(7)}&mlon=${Number(entry.lng).toFixed(7)}&zoom=18`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontSize: 11, color: 'var(--primary, #6366f1)', marginTop: 4, display: 'inline-block' }}
