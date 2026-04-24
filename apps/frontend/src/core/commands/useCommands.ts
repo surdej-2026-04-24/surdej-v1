@@ -291,6 +291,14 @@ export function useCoreCommands() {
                 icon: 'RefreshCw',
                 execute: () => navigate('/modules/converter'),
             },
+            // ─── Poster Tracker ───
+            {
+                id: 'domain.poster-tracker.dashboard',
+                label: 'Poster Tracker — Dashboard',
+                group: 'Poster Tracker',
+                icon: 'MapPin',
+                execute: () => navigate('/modules/poster-tracker'),
+            },
         ];
 
         for (const cmd of commands) {
