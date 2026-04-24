@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
     loadFridgeItems, saveFridgeItems, getExpiryStatus, daysUntilExpiry,
-    CATEGORY_OPTIONS, type FridgeItem, type ExpiryStatus,
+    CATEGORY_OPTIONS, PRODUCT_SUGGESTIONS, type FridgeItem, type ExpiryStatus,
 } from './fridgeStore';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,9 +87,34 @@ interface AddItemModalProps {
 
 function AddItemModal({ initial, onSave, onCancel }: AddItemModalProps) {
     const [form, setForm] = useState<FridgeItem>(() => newItem(initial));
+    const [suggestions, setSuggestions] = useState<typeof PRODUCT_SUGGESTIONS>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    // Allow onMouseDown on suggestion buttons to fire before onBlur hides the list
+    const SUGGESTION_HIDE_DELAY_MS = 150;
 
     const set = <K extends keyof FridgeItem>(key: K, value: FridgeItem[K]) =>
         setForm(prev => ({ ...prev, [key]: value }));
+
+    const handleNameChange = (value: string) => {
+        set('name', value);
+        if (value.trim()) {
+            const q = value.toLowerCase();
+            const matches = PRODUCT_SUGGESTIONS.filter(p =>
+                p.name.toLowerCase().includes(q)
+            ).slice(0, 8);
+            setSuggestions(matches);
+            setShowSuggestions(matches.length > 0);
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+        }
+    };
+
+    const applySuggestion = (p: typeof PRODUCT_SUGGESTIONS[number]) => {
+        setForm(prev => ({ ...prev, name: p.name, quantity: p.quantity, category: p.category }));
+        setSuggestions([]);
+        setShowSuggestions(false);
+    };
 
     return (
         <div style={{
@@ -109,12 +134,47 @@ function AddItemModal({ initial, onSave, onCancel }: AddItemModalProps) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)' }}>
                         Varenavn *
-                        <input
-                            value={form.name}
-                            onChange={e => set('name', e.target.value)}
-                            placeholder="f.eks. Mælk"
-                            style={inputStyle}
-                        />
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                value={form.name}
+                                onChange={e => handleNameChange(e.target.value)}
+                                onBlur={() => setTimeout(() => setShowSuggestions(false), SUGGESTION_HIDE_DELAY_MS)}
+                                placeholder="f.eks. Rugbrød 1,1 kg"
+                                style={inputStyle}
+                                autoComplete="off"
+                            />
+                            {showSuggestions && suggestions.length > 0 && (
+                                <div style={{
+                                    position: 'absolute', top: '100%', left: 0, right: 0,
+                                    background: 'var(--background, #fff)',
+                                    border: '1px solid var(--border, #e5e7eb)',
+                                    borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                                    zIndex: 10, maxHeight: 220, overflow: 'auto',
+                                }}>
+                                    {suggestions.map((p, i) => (
+                                        <button
+                                            key={i}
+                                            type="button"
+                                            onMouseDown={() => applySuggestion(p)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                width: '100%', padding: '8px 12px', border: 'none',
+                                                background: 'none', cursor: 'pointer', textAlign: 'left',
+                                                fontSize: 13, color: 'var(--foreground, #111)',
+                                                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border, #f3f4f6)' : 'none',
+                                            }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--muted, #f9fafb)')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                        >
+                                            <span>{p.name}</span>
+                                            <span style={{ fontSize: 11, color: 'var(--muted-foreground, #9ca3af)', marginLeft: 8 }}>
+                                                {p.category}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </label>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
