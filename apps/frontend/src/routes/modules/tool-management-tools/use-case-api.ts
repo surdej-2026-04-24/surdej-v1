@@ -214,7 +214,7 @@ export async function deleteWorkflowAttachment(attId: string) {
 }
 
 export function getWorkflowAttachmentUrl(attId: string) {
-    return `/api/modules/tool-management-tools/workflow-attachments/${attId}`;
+    return `/api/module/tool-management-tools/workflow-attachments/${attId}`;
 }
 
 // ─── Test Runner ───────────────────────────────────────────────

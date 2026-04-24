@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router';
 import { useTranslation } from '@/core/i18n';
 import { Card, CardContent } from '@/components/ui/card';
-import { Settings, Palette, Eye, Zap, Server, Building, ChevronRight } from 'lucide-react';
+import { Settings, Palette, Eye, Zap, Server, Building, KeyRound, ChevronRight } from 'lucide-react';
 
 const SECTION_DEFS = [
     { labelKey: 'settings.sections.featureFlags', descKey: 'settings.sections.featureFlagsDesc', icon: Zap, path: '/settings/features', color: 'from-amber-500 to-orange-500' },
     { labelKey: 'settings.sections.accessibility', descKey: 'settings.sections.accessibilityDesc', icon: Eye, path: '/settings/accessibility', color: 'from-blue-500 to-cyan-500' },
     { labelKey: 'settings.sections.skins', descKey: 'settings.sections.skinsDesc', icon: Palette, path: '/settings/skins', color: 'from-violet-500 to-purple-600' },
+    { labelKey: 'settings.sections.keyvault', descKey: 'settings.sections.keyvaultDesc', icon: KeyRound, path: '/settings/keyvault', color: 'from-amber-500 to-orange-500' },
     { labelKey: 'settings.sections.mcp', descKey: 'settings.sections.mcpDesc', icon: Server, path: '/settings/mcp', color: 'from-emerald-500 to-teal-500' },
     { labelKey: 'settings.sections.tenants', descKey: 'settings.sections.tenantsDesc', icon: Building, path: '/settings/tenants', color: 'from-sky-500 to-indigo-500' },
 ] as const;

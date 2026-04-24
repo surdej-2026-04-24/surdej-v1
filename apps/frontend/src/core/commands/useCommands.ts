@@ -71,6 +71,13 @@ export function useCoreCommands() {
                 execute: () => navigate('/settings/skins'),
             },
             {
+                id: 'navigate.settings.keyvault',
+                label: 'Key Vault — API Keys & Secrets',
+                group: 'Settings',
+                icon: 'KeyRound',
+                execute: () => navigate('/settings/keyvault'),
+            },
+            {
                 id: 'navigate.developer',
                 label: 'Developer Tools',
                 group: 'Tools',

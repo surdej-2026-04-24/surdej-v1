@@ -1,0 +1,28 @@
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/core-openai-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["core_openai"]
+}
+
+model AiJob {
+    id          String   @id @default(uuid())
+    type        String
+    status      String   @default("pending")
+    prompt      String?
+    inputUrl    String?
+    result      String?  @db.Text
+    resultUrl   String?
+    model       String?
+    error       String?  @db.Text
+    metadata    Json?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@schema("core_openai")
+}

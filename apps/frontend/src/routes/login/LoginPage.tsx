@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/core/auth/AuthContext';
+import { useState, useEffect, useRef } from 'react';
+import { useAuth, MfaRequiredError } from '@/core/auth/AuthContext';
 import { useAccessibility } from '@/core/accessibility/AccessibilityContext';
 import { useTranslation } from '@/core/i18n';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
@@ -27,14 +27,15 @@ import {
   Building2,
   AlertCircle,
   WifiOff,
-  Layers,
+  Phone,
+  KeyRound,
 } from 'lucide-react';
 import { api, BASE_URL, clearApiEndpoint } from '@/lib/api';
 import { PublicClientApplication } from '@azure/msal-browser';
 
 // ─── Types ─────────────────────────────────────────────────────
 
-type LoginStep = 'msal' | 'email' | 'selection' | 'processing';
+type LoginStep = 'msal' | 'email' | 'phone-lookup' | 'phone-pin' | 'selection' | 'processing' | 'totp-verify';
 
 interface TenantOption {
   id: string;
@@ -63,7 +64,7 @@ interface LookupResult {
 // ─── Component ─────────────────────────────────────────────────
 
 export function LoginPage() {
-  const { login, loginWithMicrosoft } = useAuth();
+  const { login, loginWithMicrosoft, loginWithPhonePin, verifyMfa } = useAuth();
   const { resolvedTheme, toggleTheme } = useAccessibility();
   const { t } = useTranslation();
 
@@ -155,8 +156,13 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(userEmail);
-      // AuthContext handles redirect
     } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        setMfaToken(e.mfaToken);
+        setStep('totp-verify');
+        setLoading(false);
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Login failed');
       setLoading(false);
     }
@@ -167,7 +173,46 @@ export function LoginPage() {
     try {
       await loginWithMicrosoft();
     } catch (e) {
+      if (e instanceof MfaRequiredError) {
+        setMfaToken(e.mfaToken);
+        setStep('totp-verify');
+        setLoading(false);
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Login failed');
+      setLoading(false);
+    }
+  };
+
+  const handlePhonePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      localStorage.setItem('surdej_last_phone', phone);
+      await loginWithPhonePin(phone, pin);
+    } catch (e: any) {
+      if (e instanceof MfaRequiredError) {
+        setMfaToken(e.mfaToken);
+        setStep('totp-verify');
+        setLoading(false);
+        return;
+      }
+      setError(e.message || 'Invalid phone number or PIN');
+      setLoading(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      if (!mfaToken) throw new Error('Missing MFA token');
+      await verifyMfa(mfaToken, totpCode);
+    } catch (e: any) {
+      setError(e.message || 'Invalid verification code');
+      setTotpCode('');
       setLoading(false);
     }
   };
@@ -175,8 +220,62 @@ export function LoginPage() {
   const isDev = import.meta.env.DEV;
 
   const [email, setEmail] = useState(() => localStorage.getItem('surdej_last_email') || '');
-  const [step, setStep] = useState<LoginStep>('msal');
+  const [phone, setPhone] = useState(() => localStorage.getItem('surdej_last_phone') || '');
+  const [pin, setPin] = useState('');
+  const [phoneLookedUp, setPhoneLookedUp] = useState<{ displayName?: string; avatarUrl?: string } | null>(null);
+  const [step, setStep] = useState<LoginStep>(() =>
+    localStorage.getItem('surdej_last_phone') ? 'phone-pin' : 'msal',
+  );
   const [availableTenants, setAvailableTenants] = useState<any[]>([]);
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [totpCode, setTotpCode] = useState('');
+  const pinInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const totpInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus based on step
+  useEffect(() => {
+    if (step === 'phone-lookup') {
+      phoneInputRef.current?.focus();
+    }
+    if (step === 'phone-pin') {
+      pinInputRef.current?.focus();
+    }
+    if (step === 'totp-verify') {
+      totpInputRef.current?.focus();
+    }
+  }, [step]);
+
+  // If phone is saved, auto-lookup on mount and go to PIN step
+  useEffect(() => {
+    if (step === 'phone-pin' && phone && !phoneLookedUp) {
+      lookupPhone(phone);
+    }
+  }, []);
+
+  async function lookupPhone(phoneNumber: string) {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await api.post<{ found: boolean; displayName?: string; avatarUrl?: string }>('/auth/lookup/phone', { phone: phoneNumber });
+      if (res.found) {
+        setPhoneLookedUp({ displayName: res.displayName, avatarUrl: res.avatarUrl });
+        localStorage.setItem('surdej_last_phone', phoneNumber);
+        setStep('phone-pin');
+      } else {
+        setError('No account found for this phone number.');
+      }
+    } catch (e: any) {
+      setError(e.message || 'Failed to look up phone number');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handlePhoneLookupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await lookupPhone(phone);
+  };
 
   const handleTenantSelect = async (tenant: any) => {
     setLoading(true);
@@ -248,10 +347,10 @@ export function LoginPage() {
     }
   };
 
-  // Use tenant background image or default to the Bubbling Starter image (skip video URLs)
+  // Use tenant background image or default to team photo (skip video URLs)
   const tenantBg = tenant?.backgroundUrl;
   const isImageBg = tenantBg && !/\.(mp4|webm|mov)$/i.test(tenantBg);
-  const bgUrl = isImageBg ? tenantBg : '/welcome-red.png';
+  const bgUrl = isImageBg ? tenantBg : '/happy-mates-team-1k.png';
 
   return (
     <div
@@ -287,8 +386,12 @@ export function LoginPage() {
               />
             </div>
           ) : (
-            <div className="w-16 h-16 bg-primary flex items-center justify-center mb-4 shrink-0 rounded-none">
-              <Layers className="w-10 h-10 text-primary-foreground" />
+            <div className="h-16 w-16 mb-4 flex items-center justify-center">
+              <img
+                src="/happy-mates-logo.svg"
+                alt="Happy Mates"
+                className="max-h-full max-w-full object-contain"
+              />
             </div>
           )}
 
@@ -380,6 +483,24 @@ export function LoginPage() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Sign in with Microsoft
               </Button>
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background/60 px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(localStorage.getItem('surdej_last_phone') ? 'phone-pin' : 'phone-lookup')}
+                disabled={loading || !apiHealthy}
+                className="w-full h-11"
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                Sign in with Phone + PIN
+              </Button>
               <div className="text-center mt-2">
                 <button
                   type="button"
@@ -390,7 +511,7 @@ export function LoginPage() {
                 </button>
               </div>
             </div>
-          ) : (
+          ) : step === 'email' ? (
             <div className="w-full space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
               <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -423,7 +544,155 @@ export function LoginPage() {
                 </div>
               </form>
             </div>
-          )}
+          ) : step === 'phone-lookup' ? (
+            <div className="w-full space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
+              <form onSubmit={handlePhoneLookupSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Input
+                    type="tel"
+                    placeholder="+45 12 34 56 78"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    className="h-11 text-center"
+                    disabled={loading || !apiHealthy}
+                    autoComplete="tel"
+                    ref={phoneInputRef}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full h-11"
+                  disabled={loading || !phone || phone.length < 4 || !apiHealthy}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Continue
+                </Button>
+                <div className="text-center mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep('msal')}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                  >
+                    Back to Microsoft Sign In
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : step === 'phone-pin' ? (
+            <div className="w-full space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
+              {/* Show identified user + phone */}
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <Phone className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    {phoneLookedUp?.displayName && (
+                      <p className="text-sm font-medium">{phoneLookedUp.displayName}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground font-mono">{phone}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('phone-lookup');
+                    setPin('');
+                    setPhoneLookedUp(null);
+                    setError(null);
+                  }}
+                  className="text-xs text-primary hover:underline focus:outline-none"
+                >
+                  Change
+                </button>
+              </div>
+              <form onSubmit={handlePhonePinSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="PIN code"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    required
+                    minLength={4}
+                    maxLength={10}
+                    className="h-11 text-center tracking-[0.5em] font-mono"
+                    disabled={loading || !apiHealthy}
+                    autoComplete="current-password"
+                    ref={pinInputRef}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full h-11"
+                  disabled={loading || !pin || pin.length < 4 || !apiHealthy}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Sign in
+                </Button>
+                <div className="text-center mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setStep('msal'); setPin(''); setPhoneLookedUp(null); }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                  >
+                    Back to Microsoft Sign In
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : step === 'totp-verify' ? (
+            <div className="w-full space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
+              <div className="text-center mb-4">
+                <KeyRound className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Enter the 6-digit code from your authenticator app, or use a backup code.
+                </p>
+              </div>
+              <form onSubmit={handleMfaSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="000000"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\s/g, ''))}
+                    required
+                    minLength={6}
+                    maxLength={10}
+                    className="h-11 text-center tracking-[0.5em] font-mono text-lg"
+                    disabled={loading}
+                    autoComplete="one-time-code"
+                    ref={totpInputRef}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full h-11"
+                  disabled={loading || totpCode.length < 6}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Verify
+                </Button>
+                <div className="text-center mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('msal');
+                      setMfaToken(null);
+                      setTotpCode('');
+                      setPin('');
+                      setError(null);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                  >
+                    Cancel and start over
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

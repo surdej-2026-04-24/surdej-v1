@@ -15,7 +15,7 @@
         "test:watch": "vitest"
     },
     "dependencies": {
-        "@ai-sdk/azure": "^2.0.0",
+        "@ai-sdk/azure": "^3.0.0",
         "@ai-sdk/openai": "^2.0.0",
         "@fastify/cors": "^10.0.0",
         "@fastify/multipart": "^9.0.0",

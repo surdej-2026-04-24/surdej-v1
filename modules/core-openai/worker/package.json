@@ -1,0 +1,26 @@
+{
+    "name": "@surdej/module-core-openai-worker",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch --env-file=.env src/server.ts",
+        "build": "tsc",
+        "start": "node dist/server.js",
+        "prisma:generate": "prisma generate",
+        "prisma:migrate": "prisma migrate dev"
+    },
+    "dependencies": {
+        "@fastify/cors": "^11.0.1",
+        "@prisma/client": "^6.9.0",
+        "@surdej/module-core-openai-shared": "workspace:*",
+        "fastify": "^5.3.3",
+        "nats": "^2.29.3",
+        "openai": "^4.86.0"
+    },
+    "devDependencies": {
+        "prisma": "^6.9.0",
+        "tsx": "^4.19.4",
+        "typescript": "^5.9.0-beta"
+    }
+}

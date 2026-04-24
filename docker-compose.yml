@@ -17,6 +17,8 @@
 #   Per-instance overrides live in docker-compose.<instance>.yml
 # ─────────────────────────────────────────────────────────────────
 
+name: surdej-2026-04-24
+
 networks:
   surdej-internal:
     driver: bridge
@@ -137,6 +139,8 @@ services:
       AZURE_OPENAI_MODEL_HIGH: ${AZURE_OPENAI_MODEL_HIGH:-gpt-5.4-pro}
       AZURE_OPENAI_MODEL_REASONING: ${AZURE_OPENAI_MODEL_REASONING:-o3}
       SEARXNG_URL: http://searxng:8080
+      # Keyvault encryption
+      KEYVAULT_MASTER_KEY: ${KEYVAULT_MASTER_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -206,9 +210,12 @@ services:
       NATS_URL: nats://nats:4222
       MODULE_PORT: "7004"
       MODULE_BASE_URL: http://core-issues-worker:7004
+      DATABASE_URL: postgresql://surdej:surdej_dev@postgres:5432/surdej?schema=public
       NODE_ENV: development
     depends_on:
       nats:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
 
   member-feedback-worker:
@@ -229,6 +236,50 @@ services:
       nats:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+
+  core-comms-worker:
+    build:
+      context: .
+      dockerfile: modules/core-comms/worker/Dockerfile.dev
+    networks: [surdej-internal]
+    volumes:
+      - ./modules/core-comms/shared/src:/app/modules/core-comms/shared/src
+      - ./modules/core-comms/worker/src:/app/modules/core-comms/worker/src
+    environment:
+      NATS_URL: nats://nats:4222
+      DATABASE_URL: postgresql://surdej:surdej_dev@postgres:5432/surdej?schema=public
+      MODULE_PORT: "7007"
+      MODULE_BASE_URL: http://core-comms-worker:7007
+      NODE_ENV: development
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-}
+      SMSGATE_BASE_URL: ${SMSGATE_BASE_URL:-}
+      SMSGATE_USERNAME: ${SMSGATE_USERNAME:-}
+      SMSGATE_PASSWORD: ${SMSGATE_PASSWORD:-}
+      SMSGATE_DEVICE_ID: ${SMSGATE_DEVICE_ID:-}
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  core-comms-webhook-receiver:
+    build:
+      context: .
+      dockerfile: modules/core-comms/webhook-receiver/Dockerfile.dev
+    networks: [surdej-internal]
+    ports:
+      - "7008:7008"  # Exposed for Cloudflare tunnel
+    volumes:
+      - ./modules/core-comms/shared/src:/app/modules/core-comms/shared/src
+      - ./modules/core-comms/webhook-receiver/src:/app/modules/core-comms/webhook-receiver/src
+    environment:
+      NATS_URL: nats://nats:4222
+      MODULE_PORT: "7008"
+      NODE_ENV: development
+    depends_on:
+      nats:
         condition: service_healthy
 
   # ─── Workers (optional profile) ────────────────────────────────

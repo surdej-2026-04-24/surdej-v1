@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { prisma } from '../../db.js';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { generateTotpSetup, verifyTotp, generateBackupCodes, verifyBackupCode } from './totp.js';
 
 const loginSchema = z.object({
     email: z.string().email(),
@@ -9,6 +11,30 @@ const loginSchema = z.object({
 });
 
 export async function authRoutes(app: FastifyInstance) {
+    const MFA_TOKEN_EXPIRY = 5 * 60; // 5 minutes
+
+    /** Create a short-lived JWT for MFA challenge */
+    function createMfaChallengeToken(userId: string): string {
+        const secret = process.env['SESSION_SECRET'] || 'surdej-mfa-secret';
+        return jwt.sign({ userId, purpose: 'mfa-challenge' }, secret, { expiresIn: MFA_TOKEN_EXPIRY });
+    }
+
+    /** If user has TOTP enabled, return mfa_required response instead of a session */
+    function mfaChallengeResponse(user: { id: string; totpEnabled: boolean }) {
+        if (!user.totpEnabled) return null;
+        return {
+            mfa_required: true,
+            mfaToken: createMfaChallengeToken(user.id),
+        };
+    }
+
+    /** Roles that require MFA */
+    const MFA_REQUIRED_ROLES = ['ADMIN', 'SUPER_ADMIN'];
+
+    /** Check if this user is an admin who needs MFA but hasn't set it up */
+    function isAdminMissingMfa(user: { role: string; totpEnabled: boolean }): boolean {
+        return MFA_REQUIRED_ROLES.includes(user.role) && !user.totpEnabled;
+    }
     // POST /api/auth/lookup
     // Resolves tenants and auth providers based on email domain
     app.post('/lookup', async (req, reply) => {
@@ -229,6 +255,12 @@ export async function authRoutes(app: FastifyInstance) {
                 return reply.status(401).send({ error: 'User not found' });
             }
 
+            // Check if MFA is required
+            const mfa = mfaChallengeResponse(user);
+            if (mfa) {
+                return reply.send(mfa);
+            }
+
             // Create a session
             const session = await prisma.session.create({
                 data: {
@@ -241,6 +273,7 @@ export async function authRoutes(app: FastifyInstance) {
 
             return reply.send({
                 token: session.token,
+                mfaSetupRequired: isAdminMissingMfa(user),
                 user: {
                     id: user.id,
                     email: user.email,
@@ -498,6 +531,12 @@ export async function authRoutes(app: FastifyInstance) {
         }
 
 
+        // Check if MFA is required before creating session
+        const mfa = mfaChallengeResponse(user);
+        if (mfa) {
+            return reply.send(mfa);
+        }
+
         // 3. Create Session
         const session = await prisma.session.create({
             data: {
@@ -511,6 +550,7 @@ export async function authRoutes(app: FastifyInstance) {
         // 4. Return Session
         return {
             token: session.token,
+            mfaSetupRequired: isAdminMissingMfa(user),
             user: {
                 id: user.id,
                 email: user.email,
@@ -530,6 +570,44 @@ export async function authRoutes(app: FastifyInstance) {
             await prisma.session.deleteMany({ where: { token } });
         }
         return reply.send({ success: true });
+    });
+
+    // POST /api/auth/session/refresh — extend a valid session by 24h
+    app.post('/session/refresh', async (request: FastifyRequest, reply) => {
+        const token = request.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+            return reply.status(401).send({ error: 'Not authenticated' });
+        }
+
+        const session = await prisma.session.findUnique({
+            where: { token },
+            include: { user: true },
+        });
+
+        if (!session || session.expiresAt < new Date()) {
+            return reply.status(401).send({ error: 'Session expired' });
+        }
+
+        // Extend session by 24 hours
+        const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await prisma.session.update({
+            where: { token },
+            data: { expiresAt: newExpiry },
+        });
+
+        return reply.send({
+            token: session.token,
+            expiresAt: newExpiry.toISOString(),
+            user: {
+                id: session.user.id,
+                email: session.user.email,
+                name: session.user.name,
+                displayName: session.user.displayName,
+                role: session.user.role,
+                avatarUrl: session.user.avatarUrl,
+                authProvider: session.provider,
+            },
+        });
     });
 
     // GET /api/auth/me
@@ -589,6 +667,8 @@ export async function authRoutes(app: FastifyInstance) {
             avatarUrl: user.avatarUrl,
             authProvider: session.provider,
             preferences: user.preferences ?? {},
+            mfaEnabled: user.totpEnabled,
+            mfaSetupRequired: isAdminMissingMfa(user),
             acl: {
                 activeTenantId: defaultMembership?.tenantId ?? null,
                 roleSlug: defaultMembership?.role.slug ?? null,
@@ -602,6 +682,101 @@ export async function authRoutes(app: FastifyInstance) {
                     role: { name: m.role.name, slug: m.role.slug, priority: m.role.priority },
                     isDefault: m.isDefault,
                 })),
+            },
+        });
+    });
+
+    // POST /api/auth/lookup/phone — Check if a phone number exists (no auth required)
+    app.post('/lookup/phone', async (req, reply) => {
+        const schema = z.object({
+            phone: z.string().min(4).max(20),
+        });
+
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'Invalid phone number format' });
+        }
+
+        const normalized = parsed.data.phone.replace(/[\s\-()]/g, '');
+
+        const user = await prisma.user.findUnique({
+            where: { phone: normalized },
+            select: { id: true, displayName: true, name: true, avatarUrl: true },
+        });
+
+        if (!user) {
+            return reply.send({ found: false });
+        }
+
+        return reply.send({
+            found: true,
+            displayName: user.displayName || user.name,
+            avatarUrl: user.avatarUrl,
+        });
+    });
+
+    // POST /api/auth/login/phone-pin — Authenticate with phone number + PIN code
+    app.post('/login/phone-pin', async (req, reply) => {
+        const schema = z.object({
+            phone: z.string().min(4).max(20),
+            pin: z.string().min(4).max(10),
+        });
+
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'Invalid phone number or PIN format' });
+        }
+
+        const { phone, pin } = parsed.data;
+
+        // Normalize: strip spaces/dashes, ensure E.164-ish
+        const normalized = phone.replace(/[\s\-()]/g, '');
+
+        const user = await prisma.user.findUnique({ where: { phone: normalized } });
+
+        if (!user || !user.pinHash) {
+            // Constant-time: always compare to avoid timing attacks
+            await bcrypt.compare(pin, '$2a$10$dummy.hash.for.timing.attack.prevention.only');
+            return reply.status(401).send({ error: 'Invalid phone number or PIN' });
+        }
+
+        const valid = await bcrypt.compare(pin, user.pinHash);
+        if (!valid) {
+            return reply.status(401).send({ error: 'Invalid phone number or PIN' });
+        }
+
+        // Check if MFA is required
+        const mfa = mfaChallengeResponse(user);
+        if (mfa) {
+            return reply.send(mfa);
+        }
+
+        // Create session
+        const session = await prisma.session.create({
+            data: {
+                userId: user.id,
+                token: crypto.randomUUID(),
+                provider: 'phone-pin',
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+            },
+        });
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+        });
+
+        return reply.send({
+            token: session.token,
+            mfaSetupRequired: isAdminMissingMfa(user),
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                displayName: user.displayName,
+                role: user.role,
+                avatarUrl: user.avatarUrl,
+                authProvider: session.provider,
             },
         });
     });
@@ -631,5 +806,209 @@ export async function authRoutes(app: FastifyInstance) {
         });
 
         return reply.send({ preferences: merged });
+    });
+
+    // ─── MFA / TOTP Endpoints ────────────────────────────────────────
+
+    /** Helper: resolve authenticated user from Bearer token */
+    async function getAuthenticatedUser(request: FastifyRequest, reply: any) {
+        const token = request.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+            reply.status(401).send({ error: 'Not authenticated' });
+            return null;
+        }
+        const session = await prisma.session.findUnique({
+            where: { token },
+            include: { user: true },
+        });
+        if (!session || session.expiresAt < new Date()) {
+            reply.status(401).send({ error: 'Session expired' });
+            return null;
+        }
+        return session.user;
+    }
+
+    // GET /api/auth/mfa/status — check if MFA is enabled for the current user
+    app.get('/mfa/status', async (request, reply) => {
+        const user = await getAuthenticatedUser(request, reply);
+        if (!user) return;
+
+        return reply.send({ enabled: user.totpEnabled });
+    });
+
+    // POST /api/auth/mfa/setup — generate TOTP secret + QR code (must be authenticated)
+    app.post('/mfa/setup', async (request, reply) => {
+        const user = await getAuthenticatedUser(request, reply);
+        if (!user) return;
+
+        if (user.totpEnabled) {
+            return reply.status(400).send({ error: 'TOTP is already enabled. Disable it first to reconfigure.' });
+        }
+
+        const setup = await generateTotpSetup(user.email);
+
+        // Store secret temporarily — not enabled until verified
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { totpSecret: setup.secret, totpEnabled: false },
+        });
+
+        return reply.send({
+            qrCodeDataUrl: setup.qrCodeDataUrl,
+            uri: setup.uri,
+            // Never return the raw secret to the client for security; QR code is sufficient
+        });
+    });
+
+    // POST /api/auth/mfa/verify-setup — verify initial token, enable TOTP, return backup codes
+    app.post('/mfa/verify-setup', async (request, reply) => {
+        const user = await getAuthenticatedUser(request, reply);
+        if (!user) return;
+
+        const { token } = z.object({ token: z.string().length(6) }).parse(request.body);
+
+        if (!user.totpSecret) {
+            return reply.status(400).send({ error: 'No TOTP setup in progress. Call /mfa/setup first.' });
+        }
+
+        const valid = verifyTotp(user.totpSecret, token);
+        if (!valid) {
+            return reply.status(400).send({ error: 'Invalid verification code. Please try again.' });
+        }
+
+        // Generate backup codes
+        const backups = await generateBackupCodes();
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                totpEnabled: true,
+                totpBackupCodes: backups.hashed,
+            },
+        });
+
+        console.log(`[MFA] TOTP enabled for user: ${user.email}`);
+
+        return reply.send({
+            enabled: true,
+            backupCodes: backups.plaintext, // Show once — never stored in plaintext
+        });
+    });
+
+    // POST /api/auth/mfa/disable — disable TOTP (requires current TOTP token for confirmation)
+    app.post('/mfa/disable', async (request, reply) => {
+        const user = await getAuthenticatedUser(request, reply);
+        if (!user) return;
+
+        if (!user.totpEnabled || !user.totpSecret) {
+            return reply.status(400).send({ error: 'TOTP is not enabled.' });
+        }
+
+        const { token } = z.object({ token: z.string().length(6) }).parse(request.body);
+
+        const valid = verifyTotp(user.totpSecret, token);
+        if (!valid) {
+            return reply.status(400).send({ error: 'Invalid verification code.' });
+        }
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                totpEnabled: false,
+                totpSecret: null,
+                totpBackupCodes: [],
+            },
+        });
+
+        console.log(`[MFA] TOTP disabled for user: ${user.email}`);
+
+        return reply.send({ enabled: false });
+    });
+
+    // POST /api/auth/mfa/verify — verify TOTP or backup code during login challenge
+    app.post('/mfa/verify', async (request, reply) => {
+        const schema = z.object({
+            mfaToken: z.string(),
+            code: z.string().min(6).max(10),
+        });
+
+        const parsed = schema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'Invalid request' });
+        }
+
+        const { mfaToken, code } = parsed.data;
+
+        // Decode the MFA challenge token
+        let mfaPayload: { userId: string; purpose: string };
+        try {
+            const secret = process.env['SESSION_SECRET'] || 'surdej-mfa-secret';
+            mfaPayload = jwt.verify(mfaToken, secret) as any;
+            if (mfaPayload.purpose !== 'mfa-challenge') throw new Error('Invalid purpose');
+        } catch {
+            return reply.status(401).send({ error: 'Invalid or expired MFA challenge. Please log in again.' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: mfaPayload.userId } });
+        if (!user || !user.totpSecret || !user.totpEnabled) {
+            return reply.status(401).send({ error: 'MFA not configured for this user' });
+        }
+
+        // Try TOTP verification first (6-digit code)
+        let verified = false;
+        if (code.length === 6 && /^\d{6}$/.test(code)) {
+            verified = verifyTotp(user.totpSecret, code);
+        }
+
+        // If not verified as TOTP, try backup code
+        if (!verified) {
+            const backupIndex = await verifyBackupCode(code, user.totpBackupCodes);
+            if (backupIndex >= 0) {
+                verified = true;
+                // Remove used backup code
+                const updatedCodes = [...user.totpBackupCodes];
+                updatedCodes.splice(backupIndex, 1);
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { totpBackupCodes: updatedCodes },
+                });
+                console.log(`[MFA] Backup code used for user: ${user.email} (${user.totpBackupCodes.length - 1} remaining)`);
+            }
+        }
+
+        if (!verified) {
+            return reply.status(401).send({ error: 'Invalid verification code' });
+        }
+
+        // MFA passed — create full session
+        const session = await prisma.session.create({
+            data: {
+                userId: user.id,
+                token: crypto.randomUUID(),
+                provider: 'mfa-verified',
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+        });
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+        });
+
+        console.log(`[MFA] TOTP verified for user: ${user.email}`);
+
+        return reply.send({
+            token: session.token,
+            mfaSetupRequired: isAdminMissingMfa(user),
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                displayName: user.displayName,
+                role: user.role,
+                avatarUrl: user.avatarUrl,
+                authProvider: session.provider,
+            },
+        });
     });
 }

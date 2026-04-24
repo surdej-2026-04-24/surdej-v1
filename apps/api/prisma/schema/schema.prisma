@@ -68,6 +68,10 @@ model Tenant {
   // ─── Mixin / Iframe Tools ───
   mixinKeyValues    MixinKeyValue[]
   iframeTools       IframeTool[]
+
+  // ─── Secret Vault ───
+  secrets           SecretVault[]
+  endpointKeyMappings EndpointKeyMapping[]
 }
 
 model TenantDomain {
@@ -107,6 +111,11 @@ model User {
   id            String   @id @default(uuid())
   tenantId      String?            // DEPRECATED: use UserTenant instead (kept for migration)
   email         String   @unique
+  phone         String?  @unique   // E.164 format, e.g. "+4512345678"
+  pinHash       String?            // bcrypt-hashed PIN code
+  totpSecret    String?            // TOTP secret (encrypted, base32)
+  totpEnabled   Boolean  @default(false)  // Whether TOTP MFA is active
+  totpBackupCodes String[] @default([])   // Single-use recovery codes (hashed)
   name          String?
   displayName   String?
   avatarUrl     String?
@@ -1054,4 +1063,50 @@ model IframeTool {
   @@index([tenantId])
 }
 
+// ─── Secret Vault (encrypted API key / credential store) ────────
 
+model SecretVault {
+  id             String    @id @default(cuid())
+  tenantId       String
+  name           String                         // human label, e.g. "OpenAI Production Key"
+  slug           String                         // machine name, e.g. "openai-api-key"
+  category       String    @default("api-key")  // "api-key", "token", "credential", "certificate"
+  encryptedValue String    @db.Text             // AES-256-GCM ciphertext (base64)
+  iv             String                         // initialization vector (base64)
+  authTag        String                         // GCM auth tag (base64)
+  description    String?
+  provider       String?                        // e.g. "openai", "azure", "anthropic"
+  metadata       Json?                          // { expiresAt, rotatedAt, scopes, ... }
+  lastUsedAt     DateTime?
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mappings EndpointKeyMapping[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, category])
+  @@index([tenantId, provider])
+}
+
+// ─── Endpoint → Secret Mapping ──────────────────────────────────
+// Maps a module/service endpoint to a secret from the vault.
+
+model EndpointKeyMapping {
+  id          String   @id @default(cuid())
+  tenantId    String
+  endpoint    String                           // module identifier, e.g. "core-openai", "azure-openai"
+  envVar      String   @default("API_KEY")     // env var name the worker expects, e.g. "OPENAI_API_KEY"
+  secretId    String                           // FK to SecretVault
+  priority    Int      @default(0)             // higher = preferred (for fallback chains)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  secret SecretVault @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, endpoint, envVar])
+  @@index([tenantId, endpoint])
+}

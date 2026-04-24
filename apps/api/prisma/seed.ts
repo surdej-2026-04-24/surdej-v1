@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { CORE_FEATURES } from '@surdej/core';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -30,11 +31,12 @@ async function seed() {
     console.log(`  ✓ Demo tenant: ${demoTenant.name} (${demoTenant.slug})`);
 
     // ─── Demo Users ───
+    const pinHash = await bcrypt.hash('1234', 10);
     const users = [
-        { email: 'admin@surdej.dev', name: 'Admin User', displayName: 'Admin', role: 'SUPER_ADMIN' as const, isDemoUser: true, tenantId: demoTenant.id },
-        { email: 'developer@surdej.dev', name: 'Developer', displayName: 'Dev', role: 'ADMIN' as const, isDemoUser: true, tenantId: demoTenant.id },
-        { email: 'member@surdej.dev', name: 'Team Member', displayName: 'Member', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id },
-        { email: 'guest@surdej.dev', name: 'Guest User', displayName: 'Guest', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id },
+        { email: 'admin@surdej.dev', name: 'Admin User', displayName: 'Admin', role: 'SUPER_ADMIN' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4511111111', pinHash },
+        { email: 'developer@surdej.dev', name: 'Developer', displayName: 'Dev', role: 'ADMIN' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4522222222', pinHash },
+        { email: 'member@surdej.dev', name: 'Team Member', displayName: 'Member', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4533333333', pinHash },
+        { email: 'guest@surdej.dev', name: 'Guest User', displayName: 'Guest', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4544444444', pinHash },
     ];
 
     for (const userData of users) {

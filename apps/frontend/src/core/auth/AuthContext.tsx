@@ -196,6 +196,17 @@ export interface User {
   avatarUrl?: string;
   authProvider?: string;
   preferences?: Record<string, any>;
+  mfaEnabled?: boolean;
+  mfaSetupRequired?: boolean;
+}
+
+export class MfaRequiredError extends Error {
+  mfaToken: string;
+  constructor(mfaToken: string) {
+    super('MFA verification required');
+    this.name = 'MfaRequiredError';
+    this.mfaToken = mfaToken;
+  }
 }
 
 interface AuthState {
@@ -204,6 +215,8 @@ interface AuthState {
   isLoading: boolean;
   login: (email: string) => Promise<void>;
   loginWithMicrosoft: (clientId?: string, tenantId?: string) => Promise<void>;
+  loginWithPhonePin: (phone: string, pin: string) => Promise<void>;
+  verifyMfa: (mfaToken: string, code: string) => Promise<void>;
   logout: () => void;
   setSession: (token: string, user: User) => void;
 }
@@ -334,13 +347,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Backend validation
+      // Backend validation + session refresh
       if (currentToken) {
         api.setToken(currentToken);
         try {
           const u = await api.get<User>('/auth/me');
           localStorage.setItem('surdej_user', JSON.stringify(u));
           if (isMounted) setUser(u);
+
+          // Silently refresh the session to extend it by another 24h
+          try {
+            await api.post('/auth/session/refresh');
+          } catch {
+            // Non-critical — session is still valid
+          }
         } catch (e) {
           console.warn('[AuthContext] Token validation failed:', e);
           localStorage.removeItem('surdej_token');
@@ -361,8 +381,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Periodic silent session refresh (every 4 hours)
+  useEffect(() => {
+    if (!user) return;
+
+    const REFRESH_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
+    const interval = setInterval(async () => {
+      try {
+        await api.post('/auth/session/refresh');
+        console.log('[AuthContext] Session refreshed silently');
+      } catch {
+        console.warn('[AuthContext] Session refresh failed — session may have expired');
+      }
+    }, REFRESH_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
   const login = useCallback(async (email: string) => {
-    const res = await api.post<{ token: string; user: User }>('/auth/login', { email });
+    const res = await api.post<{ token: string; user: User; mfa_required?: boolean; mfaToken?: string; mfaSetupRequired?: boolean }>('/auth/login', { email });
+    if (res.mfa_required && res.mfaToken) {
+      throw new MfaRequiredError(res.mfaToken);
+    }
+    const user = { ...res.user, mfaSetupRequired: res.mfaSetupRequired };
+    localStorage.setItem('surdej_token', res.token);
+    localStorage.setItem('surdej_user', JSON.stringify(user));
+    api.setToken(res.token);
+    setUser(user);
+  }, []);
+
+  const loginWithPhonePin = useCallback(async (phone: string, pin: string) => {
+    const res = await api.post<{ token: string; user: User; mfa_required?: boolean; mfaToken?: string; mfaSetupRequired?: boolean }>('/auth/login/phone-pin', { phone, pin });
+    if (res.mfa_required && res.mfaToken) {
+      throw new MfaRequiredError(res.mfaToken);
+    }
+    const user = { ...res.user, mfaSetupRequired: res.mfaSetupRequired };
+    localStorage.setItem('surdej_token', res.token);
+    localStorage.setItem('surdej_user', JSON.stringify(user));
+    api.setToken(res.token);
+    setUser(user);
+  }, []);
+
+  const verifyMfa = useCallback(async (mfaToken: string, code: string) => {
+    const res = await api.post<{ token: string; user: User }>('/auth/mfa/verify', { mfaToken, code });
     localStorage.setItem('surdej_token', res.token);
     localStorage.setItem('surdej_user', JSON.stringify(res.user));
     api.setToken(res.token);
@@ -406,17 +467,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const tokens = await loginWithPopup(clientId, tenantId, popup);
 
         console.log('[AuthContext] 🔄 Exchanging tokens with backend…');
-        const res = await api.post<{ token: string; user: User }>('/auth/callback/microsoft-spa', {
+        const res = await api.post<{ token: string; user: User; mfa_required?: boolean; mfaToken?: string }>('/auth/callback/microsoft-spa', {
           idToken: tokens.idToken,
           accessToken: tokens.accessToken,
           tenantId,
           clientId,
           payload: tokens,
         });
+        if (res.mfa_required && res.mfaToken) {
+          throw new MfaRequiredError(res.mfaToken);
+        }
+        const msalUser = { ...res.user, mfaSetupRequired: (res as any).mfaSetupRequired };
         localStorage.setItem('surdej_token', res.token);
-        localStorage.setItem('surdej_user', JSON.stringify(res.user));
+        localStorage.setItem('surdej_user', JSON.stringify(msalUser));
         api.setToken(res.token);
-        setUser(res.user);
+        setUser(msalUser);
         console.log('[AuthContext] ✅ Login complete!');
       } else {
         // ── REDIRECT FLOW ──
@@ -494,6 +559,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         loginWithMicrosoft,
+        loginWithPhonePin,
+        verifyMfa,
         logout,
         setSession,
       }}

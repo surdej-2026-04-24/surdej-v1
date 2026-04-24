@@ -46,6 +46,7 @@ import { DocumentsPage } from '@/routes/knowledge/DocumentsPage';
 import { ProfilePage } from '@/routes/profile/ProfilePage';
 import { FeatureMatrixPage } from '@/routes/settings/FeatureMatrixPage';
 import { AclMatrixPage } from '@/routes/settings/AclMatrixPage';
+import { KeyVaultSettingsPage } from '@/routes/settings/KeyVaultSettingsPage';
 
 // ─── Modules ───────────────────────────────────────────────────
 import { ModulesHubPage } from '@/routes/modules/ModulesHubPage';
@@ -91,6 +92,7 @@ import { ExtensionPage } from '@/routes/extension/ExtensionPage';
 import { ExtensionDownloadPage } from '@/routes/extension/ExtensionDownloadPage';
 import { OfficeAddinPage } from '@/routes/office-addin/OfficeAddinPage';
 import { ToolsHubPage } from '@/routes/tools/ToolsHubPage';
+import { MfaOnboardingGate } from '@/core/auth/MfaOnboardingGate';
 
 
 
@@ -122,7 +124,11 @@ export function App() {
         return <LoginPage />;
     }
 
-    return <AuthenticatedApp />;
+    return (
+        <MfaOnboardingGate>
+            <AuthenticatedApp />
+        </MfaOnboardingGate>
+    );
 }
 
 function AuthenticatedApp() {
@@ -178,6 +184,7 @@ function AuthenticatedApp() {
                     <Route path="settings/accessibility" element={<AccessibilitySettingsPage />} />
                     <Route path="settings/skins" element={<SkinsSettingsPage />} />
                     <Route path="settings/skins/:skinId" element={<SkinEditorPage />} />
+                    <Route path="settings/keyvault" element={<KeyVaultSettingsPage />} />
                     <Route path="settings/mcp" element={<McpSettingsPage />} />
                     <Route path="settings/tenants" element={<TenantsSettingsPage />} />
                     <Route path="settings/tenants/:tenantId" element={<TenantWorkspaceLayout />}>

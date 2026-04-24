@@ -184,6 +184,8 @@ const da: TranslationKeys = {
             skinsDesc: 'Tilpas udseende og sidebjælke',
             mcp: 'MCP',
             mcpDesc: 'Model Context Protocol servere og værktøjer',
+            keyvault: 'Nøgleboks',
+            keyvaultDesc: 'API-nøgler, hemmeligheder og endpoint-tilknytninger',
             tenants: 'Lejere',
             tenantsDesc: 'Administrer organisationer og data-isolation',
         },

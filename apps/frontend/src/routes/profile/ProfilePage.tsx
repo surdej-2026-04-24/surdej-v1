@@ -16,6 +16,7 @@ import {
     User, Mail, Shield, Building, Calendar, Clock,
     LogOut, Key, Globe,
 } from 'lucide-react';
+import { MfaSetup } from './MfaSetup';
 
 function InfoRow({ icon: Icon, label, value, mono, fallback }: {
     icon: React.FC<{ className?: string }>;
@@ -96,6 +97,9 @@ export function ProfilePage() {
                         <InfoRow icon={Key} label={t('profile.userId')} value={user?.id} mono fallback={t('common.notSet')} />
                     </div>
                 </section>
+
+                {/* Security — MFA */}
+                <MfaSetup />
 
                 {/* Tenant */}
                 {activeTenant && (

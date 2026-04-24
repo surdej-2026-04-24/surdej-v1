@@ -152,7 +152,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     isActive && 'bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90',
                 )}
                 size="default"
-                onClick={() => navigate(path)}
+                onClick={() => {
+                    navigate(path);
+                    if (window.matchMedia('(max-width: 768px)').matches) {
+                        onToggle();
+                    }
+                }}
             >
                 <Icon className="h-[18px] w-[18px] shrink-0" />
                 <span className="truncate">{label}</span>

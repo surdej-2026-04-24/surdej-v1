@@ -183,6 +183,8 @@ const en = {
       skinsDesc: 'Customize appearance and sidebar',
       mcp: 'MCP',
       mcpDesc: 'Model Context Protocol servers and tools',
+      keyvault: 'Key Vault',
+      keyvaultDesc: 'API keys, secrets, and endpoint mappings',
       tenants: 'Tenants',
       tenantsDesc: 'Manage organisations and tenant data isolation',
     },

@@ -93,17 +93,25 @@ export function getModel(tier: ModelTier = 'medium'): LanguageModel {
     const modelId = config.models[tier];
 
     if (config.provider === 'azure') {
-        const resourceName = config.endpoint
-            ?.replace('https://', '')
-            .replace('.openai.azure.com/', '')
-            .replace('.openai.azure.com', '');
+        // Support both endpoint formats:
+        //   - https://<name>.openai.azure.com/          (legacy OpenAI resources)
+        //   - https://<name>.cognitiveservices.azure.com/ (AIServices / Cognitive Services)
+        const endpoint = config.endpoint ?? '';
+        const isLegacyEndpoint = endpoint.includes('.openai.azure.com');
+        const resourceName = isLegacyEndpoint
+            ? endpoint.replace('https://', '').replace(/\.openai\.azure\.com\/?$/, '')
+            : undefined;
+        // For cognitiveservices endpoints, build the base URL for the OpenAI API surface
+        const baseURL = !isLegacyEndpoint && endpoint
+            ? `${endpoint.replace(/\/$/, '')}/openai/deployments`
+            : undefined;
 
         // Some newer models (e.g. gpt-5.4-pro) only support the Responses API.
         // Do NOT set apiVersion — the SDK default works; Azure rejects explicit versions on /v1/responses.
         if (RESPONSES_API_MODELS.has(modelId)) {
             if (!_azureResponsesProvider) {
                 _azureResponsesProvider = createAzure({
-                    resourceName,
+                    ...(resourceName ? { resourceName } : { baseURL: `${endpoint.replace(/\/$/, '')}/openai` }),
                     apiKey: config.apiKey,
                 });
             }
@@ -112,12 +120,9 @@ export function getModel(tier: ModelTier = 'medium'): LanguageModel {
 
         if (!_azureProvider) {
             _azureProvider = createAzure({
-                resourceName,
+                ...(resourceName ? { resourceName } : { baseURL }),
                 apiKey: config.apiKey,
                 apiVersion: config.apiVersion,
-                // Use deployment-based URLs (/deployments/{model}/chat/completions)
-                // instead of the new /v1/ path which is not yet supported on all Azure resources
-                useDeploymentBasedUrls: true,
             });
         }
         return _azureProvider.chat(modelId) as LanguageModel;

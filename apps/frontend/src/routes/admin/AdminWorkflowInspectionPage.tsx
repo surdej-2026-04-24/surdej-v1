@@ -28,7 +28,7 @@ export function AdminWorkflowInspectionPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        api.get<{ items: WorkflowSession[] }>('/modules/tool-management-tools/admin/sessions')
+        api.get<{ items: WorkflowSession[] }>('/module/tool-management-tools/admin/sessions')
             .then((res) => {
                 setSessions(res.items);
                 setLoading(false);

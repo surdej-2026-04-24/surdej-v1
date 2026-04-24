@@ -1,0 +1,20 @@
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# ── Install ──
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY tsconfig.json ./
+COPY modules/core-comms/shared/package.json modules/core-comms/shared/
+COPY modules/core-comms/worker/package.json modules/core-comms/worker/
+RUN pnpm install --frozen-lockfile
+
+# ── Copy source ──
+COPY modules/core-comms/shared/ modules/core-comms/shared/
+COPY modules/core-comms/worker/ modules/core-comms/worker/
+
+# ── Generate Prisma client ──
+RUN pnpm --filter @surdej/module-core-comms-worker prisma:generate
+
+# ── Run with tsx ──
+CMD ["pnpm", "--filter", "@surdej/module-core-comms-worker", "dev"]

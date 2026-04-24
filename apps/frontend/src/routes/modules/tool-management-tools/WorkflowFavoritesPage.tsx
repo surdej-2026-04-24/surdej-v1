@@ -39,7 +39,7 @@ export function WorkflowFavoritesPage() {
         (async () => {
             try {
                 const [sessionsRes, wfList] = await Promise.all([
-                    api.get<{ items: WorkflowSession[] }>('/modules/tool-management-tools/sessions'),
+                    api.get<{ items: WorkflowSession[] }>('/module/tool-management-tools/sessions'),
                     fetchActiveUseCases(),
                 ]);
                 if (cancelled) return;

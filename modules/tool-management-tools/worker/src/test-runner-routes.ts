@@ -39,16 +39,19 @@ function getModelForTier(tier: ModelTierKey): LanguageModel {
     };
 
     if (provider === 'azure') {
-        const resourceName = process.env['AZURE_OPENAI_ENDPOINT']
-            ?.replace('https://', '')
-            .replace('.openai.azure.com/', '')
-            .replace('.openai.azure.com', '');
+        const endpoint = process.env['AZURE_OPENAI_ENDPOINT'] ?? '';
+        const isLegacy = endpoint.includes('.openai.azure.com');
+        const resourceName = isLegacy
+            ? endpoint.replace('https://', '').replace(/\.openai\.azure\.com\/?$/, '')
+            : undefined;
+        const baseURL = !isLegacy && endpoint
+            ? `${endpoint.replace(/\/$/, '')}/openai/deployments`
+            : undefined;
 
         const azure = createAzure({
-            resourceName,
+            ...(resourceName ? { resourceName } : { baseURL }),
             apiKey: process.env['AZURE_OPENAI_API_KEY'],
             apiVersion: process.env['AZURE_OPENAI_API_VERSION'] ?? '2024-08-01-preview',
-            useDeploymentBasedUrls: true,
         });
         return azure.chat(azureModels[tier]) as any;
     }

@@ -19,6 +19,10 @@ import { uploadBlob } from '../blobs/service.js';
 
 const prisma = new PrismaClient();
 
+// ── Module URLs ─────────────────────────────────────────────────
+
+const OPENAI_MODULE_URL = process.env['OPENAI_MODULE_URL'] || 'http://localhost:7009';
+
 // ── Web Search via SearXNG (self-hosted) ────────────────────────
 
 const SEARXNG_URL = process.env['SEARXNG_URL'] || 'http://searxng:8080';
@@ -437,6 +441,165 @@ export function buildMcpTools(tenantId?: string, userId?: string) {
                     });
 
                 return { total: results.length, documents: results };
+            },
+        }),
+
+        // ── OpenAI Studio Tools (core-openai module) ────────────────
+
+        openai_generate_image: tool({
+            description: 'Generate an image from a text description using DALL-E or GPT Image. Returns a URL to the generated image.',
+            inputSchema: z.object({
+                prompt: z.string().describe('Detailed description of the image to generate'),
+                model: z.enum(['dall-e-2', 'dall-e-3', 'gpt-image-1']).default('dall-e-3').describe('Image generation model'),
+                size: z.enum(['1024x1024', '1024x1792', '1792x1024']).default('1024x1024').describe('Image dimensions'),
+            }),
+            execute: async ({ prompt, model, size }: { prompt: string; model: string; size: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/text-to-image`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt, model, size }),
+                        signal: AbortSignal.timeout(120_000),
+                    });
+                    if (!res.ok) return { error: `Image generation failed: ${res.status}` };
+                    return await res.json();
+                } catch (e) { return { error: (e as Error).message }; }
+            },
+        }),
+
+        openai_analyze_image: tool({
+            description: 'Analyze and describe an image using GPT-4o vision. Provide an image URL and optional question.',
+            inputSchema: z.object({
+                imageUrl: z.string().describe('URL of the image to analyze'),
+                prompt: z.string().default('Describe this image in detail.').describe('Question or instruction about the image'),
+            }),
+            execute: async ({ imageUrl, prompt }: { imageUrl: string; prompt: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/image-to-text`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ imageUrl, prompt }),
+                        signal: AbortSignal.timeout(60_000),
+                    });
+                    if (!res.ok) return { error: `Image analysis failed: ${res.status}` };
+                    return await res.json();
+                } catch (e) { return { error: (e as Error).message }; }
+            },
+        }),
+
+        openai_transcribe_audio: tool({
+            description: 'Transcribe audio to text using OpenAI Whisper. Provide a URL to an audio file (mp3, wav, m4a, etc.).',
+            inputSchema: z.object({
+                audioUrl: z.string().describe('URL of the audio file to transcribe'),
+                language: z.string().optional().describe('Language code (e.g. "en", "da", "de")'),
+            }),
+            execute: async ({ audioUrl, language }: { audioUrl: string; language?: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/speech-to-text`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audioUrl, language, responseFormat: 'verbose_json' }),
+                        signal: AbortSignal.timeout(120_000),
+                    });
+                    if (!res.ok) return { error: `Transcription failed: ${res.status}` };
+                    return await res.json();
+                } catch (e) { return { error: (e as Error).message }; }
+            },
+        }),
+
+        openai_text_to_speech: tool({
+            description: 'Convert text to spoken audio using OpenAI TTS. Returns base64-encoded audio.',
+            inputSchema: z.object({
+                input: z.string().describe('Text to convert to speech (max 4096 chars)'),
+                voice: z.enum(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']).default('alloy').describe('Voice to use'),
+            }),
+            execute: async ({ input, voice }: { input: string; voice: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/text-to-speech`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ input: input.slice(0, 4096), voice }),
+                        signal: AbortSignal.timeout(60_000),
+                    });
+                    if (!res.ok) return { error: `TTS failed: ${res.status}` };
+                    const data = await res.json();
+                    return { success: true, format: data.format, contentType: data.contentType, audioLength: data.audioBase64?.length ?? 0 };
+                } catch (e) { return { error: (e as Error).message }; }
+            },
+        }),
+
+        openai_count_tokens: tool({
+            description: 'Estimate token count and cost for text input across OpenAI models.',
+            inputSchema: z.object({
+                text: z.string().describe('Text to estimate tokens for'),
+                model: z.string().default('gpt-4o').describe('Model to estimate cost for'),
+            }),
+            execute: async ({ text, model }: { text: string; model: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/count-tokens`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text, model }),
+                    });
+                    if (!res.ok) return { error: `Token count failed: ${res.status}` };
+                    return await res.json();
+                } catch (e) { return { error: (e as Error).message }; }
+            },
+        }),
+
+        openai_moderate_content: tool({
+            description: 'Check text content against OpenAI moderation policies. Returns flagged categories and scores.',
+            inputSchema: z.object({
+                input: z.string().describe('Text content to check for policy violations'),
+            }),
+            execute: async ({ input }: { input: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/moderation`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ input }),
+                    });
+                    if (!res.ok) return { error: `Moderation failed: ${res.status}` };
+                    return await res.json();
+                } catch (e) { return { error: (e as Error).message }; }
+            },
+        }),
+
+        openai_generate_embeddings: tool({
+            description: 'Generate vector embeddings for text using OpenAI embedding models. Useful for semantic search and similarity.',
+            inputSchema: z.object({
+                input: z.string().describe('Text to generate embeddings for'),
+                model: z.enum(['text-embedding-3-small', 'text-embedding-3-large']).default('text-embedding-3-small').describe('Embedding model'),
+            }),
+            execute: async ({ input, model }: { input: string; model: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/embeddings`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ input, model }),
+                    });
+                    if (!res.ok) return { error: `Embedding failed: ${res.status}` };
+                    const data = await res.json();
+                    return { model: data.model, dimensions: data.embeddings?.[0]?.values?.length ?? 0, usage: data.usage };
+                } catch (e) { return { error: (e as Error).message }; }
+            },
+        }),
+
+        openai_list_models: tool({
+            description: 'List available OpenAI models with capabilities, pricing, and limits.',
+            inputSchema: z.object({
+                category: z.enum(['chat', 'image', 'audio', 'embedding', 'moderation', 'reasoning']).optional().describe('Filter by model category'),
+            }),
+            execute: async ({ category }: { category?: string }) => {
+                try {
+                    const res = await fetch(`${OPENAI_MODULE_URL}/models`);
+                    if (!res.ok) return { error: `Model catalog failed: ${res.status}` };
+                    const data = await res.json();
+                    const models = category
+                        ? data.models.filter((m: any) => m.category === category)
+                        : data.models;
+                    return { total: models.length, models };
+                } catch (e) { return { error: (e as Error).message }; }
             },
         }),
     };

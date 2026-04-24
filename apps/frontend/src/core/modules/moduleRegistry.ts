@@ -107,6 +107,33 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
             { id: 'sessions', label: 'My Sessions', icon: 'Activity', path: '/sessions' },
         ],
     },
+    {
+        id: 'b8c9d0e1-2f3a-4b5c-6d7e-8f9a0b1c2d3e',
+        slug: 'core-openai',
+        name: 'AI Studio',
+        description: 'OpenAI multi-modal AI: image generation, vision, audio, benchmarks, playground, embeddings og moderation',
+        icon: 'Brain',
+        color: 'from-purple-500 to-pink-600',
+        version: '0.1.0',
+        href: '/modules/core-openai',
+        activityItems: [
+            { id: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', path: '' },
+            { id: 'text-to-image', label: 'Text to Image', icon: 'ImagePlus', path: '/text-to-image' },
+            { id: 'image-to-text', label: 'Image to Text', icon: 'ScanText', path: '/image-to-text' },
+            { id: 'image-to-image', label: 'Image to Image', icon: 'ImageDown', path: '/image-to-image' },
+            { id: 'video-analysis', label: 'Video Analysis', icon: 'Video', path: '/video-analysis' },
+            { id: 'chat', label: 'Chat', icon: 'MessageSquare', path: '/chat' },
+            { id: 'speech-to-text', label: 'Speech to Text', icon: 'Mic', path: '/speech-to-text' },
+            { id: 'text-to-speech', label: 'Text to Speech', icon: 'Volume2', path: '/text-to-speech' },
+            { id: 'benchmark', label: 'Benchmark', icon: 'BarChart3', path: '/benchmark' },
+            { id: 'playground', label: 'Playground', icon: 'FlaskConical', path: '/playground' },
+            { id: 'token-counter', label: 'Token Counter', icon: 'Calculator', path: '/token-counter' },
+            { id: 'embeddings', label: 'Embeddings', icon: 'Waypoints', path: '/embeddings' },
+            { id: 'moderation', label: 'Moderation', icon: 'ShieldCheck', path: '/moderation' },
+            { id: 'models', label: 'Model Catalog', icon: 'Library', path: '/models' },
+            { id: 'jobs', label: 'Job History', icon: 'History', path: '/jobs' },
+        ],
+    },
 ];
 
 /** Look up a module by its GUID */

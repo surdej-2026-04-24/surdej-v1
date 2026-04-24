@@ -1,0 +1,80 @@
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/core-comms-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["core_comms"]
+}
+
+model Communication {
+    id                String   @id @default(uuid())
+    channel           String   // email, sms, webhook_outbound, webhook_inbound
+    direction         String   // outbound, inbound
+    status            String   @default("pending") // pending, sent, delivered, failed, bounced, received
+
+    // Who initiated this communication
+    initiatorId       String
+    initiatorType     String   @default("user") // user, system, webhook
+
+    // Recipient / source
+    recipient         String?  // email address, phone number, or webhook URL
+    sender            String?
+
+    // Content
+    subject           String?
+    body              String?  @db.Text
+    metadata          Json?    // provider-specific data
+
+    // Provider response
+    providerMessageId String?
+    providerResponse  Json?
+    errorMessage      String?  @db.Text
+
+    createdAt         DateTime @default(now())
+    updatedAt         DateTime @updatedAt
+
+    @@index([channel])
+    @@index([initiatorId])
+    @@index([status])
+    @@index([createdAt])
+    @@schema("core_comms")
+}
+
+model WebhookEndpoint {
+    id          String   @id @default(uuid())
+    name        String
+    description String?
+    secret      String?  // for HMAC verification
+    isActive    Boolean  @default(true)
+
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    events      WebhookEvent[]
+
+    @@schema("core_comms")
+}
+
+model WebhookEvent {
+    id          String   @id @default(uuid())
+    endpointId  String
+    headers     Json
+    body        Json?
+    sourceIp    String?
+    method      String
+    path        String
+    processedAt DateTime?
+    status      String   @default("received") // received, processing, processed, failed
+
+    receivedAt  DateTime @default(now())
+
+    endpoint    WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+    @@index([endpointId])
+    @@index([status])
+    @@schema("core_comms")
+}

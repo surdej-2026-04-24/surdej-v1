@@ -16,8 +16,24 @@ import { createAzure } from '@ai-sdk/azure';
 import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 
+function buildAzureConfig() {
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT ?? '';
+    const isLegacy = endpoint.includes('.openai.azure.com');
+    const resourceName = isLegacy
+        ? endpoint.replace('https://', '').replace(/\.openai\.azure\.com\/?$/, '')
+        : undefined;
+    const baseURL = !isLegacy && endpoint
+        ? `${endpoint.replace(/\/$/, '')}/openai/deployments`
+        : undefined;
+    return {
+        ...(resourceName ? { resourceName } : { baseURL }),
+        apiKey: process.env.AZURE_OPENAI_API_KEY,
+        apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
+    };
+}
+
 const aiProvider = process.env.AI_PROVIDER === 'azure'
-    ? createAzure({ apiKey: process.env.AZURE_OPENAI_API_KEY, baseURL: process.env.AZURE_OPENAI_ENDPOINT })
+    ? createAzure(buildAzureConfig())
     : createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function resolveModel(): string {

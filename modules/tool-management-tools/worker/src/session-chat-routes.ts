@@ -3,25 +3,35 @@ import { getPrisma } from './db.js';
 import { streamText, stepCountIs, type CoreMessage } from 'ai';
 import { createAzure } from '@ai-sdk/azure';
 import { createOpenAI } from '@ai-sdk/openai';
+import type { LanguageModelV1 } from '@ai-sdk/provider';
 import { buildSessionTools } from './session-tools.js';
 
 const prisma = getPrisma();
 
-function getAzureResourceName(): string {
-    return (process.env.AZURE_OPENAI_ENDPOINT ?? '')
-        .replace('https://', '')
-        .replace('.openai.azure.com/', '')
-        .replace('.openai.azure.com', '');
-}
+function getModel(modelId: string): LanguageModelV1 {
+    if (process.env.AI_PROVIDER !== 'azure') {
+        return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
+    }
+    const endpoint = (process.env.AZURE_OPENAI_ENDPOINT ?? '').replace(/\/$/, '');
+    const apiKey = process.env.AZURE_OPENAI_API_KEY ?? '';
+    const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview';
+    const isLegacy = endpoint.includes('.openai.azure.com');
 
-const aiProvider = process.env.AI_PROVIDER === 'azure'
-    ? createAzure({
-        resourceName: getAzureResourceName(),
-        apiKey: process.env.AZURE_OPENAI_API_KEY,
-        apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
-        useDeploymentBasedUrls: true,
-    })
-    : createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    if (isLegacy) {
+        const resourceName = endpoint.replace('https://', '').replace(/\.openai\.azure\.com\/?$/, '');
+        return createAzure({ resourceName, apiKey, apiVersion }).chat(modelId);
+    }
+    return createOpenAI({
+        baseURL: `${endpoint}/openai/deployments/${modelId}`,
+        apiKey,
+        headers: { 'api-key': apiKey },
+        fetch: (url, init) => {
+            const u = new URL(url as string);
+            u.searchParams.set('api-version', apiVersion);
+            return globalThis.fetch(u.toString(), init);
+        },
+    }).chat(modelId);
+}
 
 // ─── Model tier → model name resolution ─────────────────────────
 const MODEL_TIER_MAP: Record<string, string> = {
@@ -189,7 +199,7 @@ export function registerSessionChatRoutes(app: FastifyInstance) {
 
         try {
             const result = await streamText({
-                model: aiProvider(modelName) as any,
+                model: getModel(modelName) as any,
                 messages: coreMessages,
                 ...(hasTools ? {
                     tools,

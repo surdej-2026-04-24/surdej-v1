@@ -2,25 +2,33 @@ import type { FastifyInstance } from 'fastify';
 import { streamText, type CoreMessage } from 'ai';
 import { createAzure } from '@ai-sdk/azure';
 import { createOpenAI } from '@ai-sdk/openai';
+import type { LanguageModelV1 } from '@ai-sdk/provider';
 
-function getAzureResourceName(): string {
-    return (process.env.AZURE_OPENAI_ENDPOINT ?? '')
-        .replace('https://', '')
-        .replace('.openai.azure.com/', '')
-        .replace('.openai.azure.com', '');
-}
+function getModel(): LanguageModelV1 {
+    if (process.env.AI_PROVIDER !== 'azure') {
+        const modelId = process.env.AI_MODEL || 'gpt-4o';
+        return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
+    }
+    const endpoint = (process.env.AZURE_OPENAI_ENDPOINT ?? '').replace(/\/$/, '');
+    const apiKey = process.env.AZURE_OPENAI_API_KEY ?? '';
+    const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview';
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'model-router';
 
-const aiProvider = process.env.AI_PROVIDER === 'azure'
-    ? createAzure({
-        resourceName: getAzureResourceName(),
-        apiKey: process.env.AZURE_OPENAI_API_KEY,
-        apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
-        useDeploymentBasedUrls: true,
-    })
-    : createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-function resolveModel(): string {
-    return process.env.AZURE_OPENAI_MODEL_MEDIUM || process.env.AI_MODEL || 'gpt-4o';
+    const isLegacy = endpoint.includes('.openai.azure.com');
+    if (isLegacy) {
+        const resourceName = endpoint.replace('https://', '').replace(/\.openai\.azure\.com\/?$/, '');
+        return createAzure({ resourceName, apiKey, apiVersion }).chat(deployment);
+    }
+    return createOpenAI({
+        baseURL: `${endpoint}/openai/deployments/${deployment}`,
+        apiKey,
+        headers: { 'api-key': apiKey },
+        fetch: (url, init) => {
+            const u = new URL(url as string);
+            u.searchParams.set('api-version', apiVersion);
+            return globalThis.fetch(u.toString(), init);
+        },
+    }).chat(deployment);
 }
 
 const SYSTEM_PROMPT = `You are the Surdej Workflow Architect Assistant.
@@ -138,8 +146,6 @@ export function registerWizardRoutes(app: FastifyInstance) {
             ...incomingMessages.map((m: any) => ({ role: m.role as any, content: m.content })),
         ];
 
-        const modelName = resolveModel();
-
         reply.raw.setHeader('Content-Type', 'text/event-stream');
         reply.raw.setHeader('Cache-Control', 'no-cache');
         reply.raw.setHeader('Connection', 'keep-alive');
@@ -149,7 +155,7 @@ export function registerWizardRoutes(app: FastifyInstance) {
             reply.raw.write(`data: ${JSON.stringify({ type: 'system_prompt', content: SYSTEM_PROMPT + langInstruction })}\n\n`);
 
             const result = streamText({
-                model: aiProvider(modelName),
+                model: getModel(),
                 messages: coreMessages,
             });
 

@@ -29,6 +29,7 @@ import { bridgeConsentRoutes } from './core/bridge-consent/routes.js';
 import { kvStoreRoutes } from './core/kv-store/routes.js';
 import { iframeToolRoutes } from './core/iframe-tools/routes.js';
 import { mixinKvRoutes } from './core/mixin-kv/routes.js';
+import { keyvaultRoutes } from './core/keyvault/routes.js';
 import { scanDomainPlugins } from './core/middleware/plugin-scanner.js';
 import { resolveContext } from './core/middleware/acl.js';
 import { setTenantContext } from './core/middleware/tenant-context.js';
@@ -202,6 +203,7 @@ await app.register(bridgeConsentRoutes, { prefix: '/api/bridge-consent' });
 await app.register(kvStoreRoutes, { prefix: '/api/kv' });
 await app.register(iframeToolRoutes, { prefix: '/api/iframe-tools' });
 await app.register(mixinKvRoutes, { prefix: '/api/mixin-kv' });
+await app.register(keyvaultRoutes, { prefix: '/api/keyvault' });
 
 // Domain plugins
 await scanDomainPlugins(app);

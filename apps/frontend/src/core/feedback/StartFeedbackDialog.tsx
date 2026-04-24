@@ -16,7 +16,7 @@ import { Camera, Mic, Video, Navigation, WifiOff } from 'lucide-react';
 import { useFeedbackStore, getAllSessions } from './feedbackStore';
 import { useTranslation } from '@/core/i18n';
 
-const WHEREBY_URL = process.env.VITE_WHEREBY_FEEDBACK_URL || 'https://whereby.com/your-room';
+const WHEREBY_URL = import.meta.env.VITE_WHEREBY_FEEDBACK_URL || 'https://whereby.com/your-room';
 
 interface StartFeedbackDialogProps {
     open: boolean;

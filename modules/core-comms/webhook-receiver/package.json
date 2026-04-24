@@ -1,0 +1,21 @@
+{
+    "name": "@surdej/module-core-comms-webhook-receiver",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "build": "tsc",
+        "start": "node dist/server.js"
+    },
+    "dependencies": {
+        "@fastify/cors": "^11.0.1",
+        "@surdej/module-core-comms-shared": "workspace:*",
+        "fastify": "^5.3.3",
+        "nats": "^2.29.3"
+    },
+    "devDependencies": {
+        "tsx": "^4.19.4",
+        "typescript": "^5.9.0-beta"
+    }
+}

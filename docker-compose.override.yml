@@ -1,6 +1,17 @@
 # Local dev overrides — expose infra ports for native module workers
 # This file is gitignored and auto-merged by Docker Compose.
 
+services:
+  api:
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+  tool-management-tools-worker:
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
 # services:
 #   postgres:
 #     ports:

@@ -1,0 +1,17 @@
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# ── Install ──
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY tsconfig.json ./
+COPY modules/core-comms/shared/package.json modules/core-comms/shared/
+COPY modules/core-comms/webhook-receiver/package.json modules/core-comms/webhook-receiver/
+RUN pnpm install --frozen-lockfile
+
+# ── Copy source ──
+COPY modules/core-comms/shared/ modules/core-comms/shared/
+COPY modules/core-comms/webhook-receiver/ modules/core-comms/webhook-receiver/
+
+# ── Run with tsx ──
+CMD ["pnpm", "--filter", "@surdej/module-core-comms-webhook-receiver", "dev"]
