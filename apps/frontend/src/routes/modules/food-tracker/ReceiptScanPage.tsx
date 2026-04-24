@@ -1,40 +1,55 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
-    Camera, ScanLine, Upload, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw,
+    ScanLine, Upload, Camera, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import { CameraCapture } from './CameraCapture';
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
 
-// ─── Simulated OCR / AI parsing ───────────────────────────────────────────────
-// In production this would call an AI endpoint (e.g. Azure OpenAI vision API).
+// ─── AI receipt parsing ────────────────────────────────────────────────────────
+// Sends the image to the backend /api/ai/scan-receipt endpoint which uses
+// GPT-4o vision to extract ALL items from the receipt with their prices.
+// Expiry dates are intentionally omitted — receipts do not carry that info.
 
 interface ParsedReceiptItem {
     name: string;
     quantity: string;
+    price: string | null;     // price as read from the receipt line (e.g. "29.95")
     category: string;
-    estimatedExpiry: string | null; // ISO date
 }
 
-const DEMO_ITEMS: ParsedReceiptItem[] = [
-    { name: 'Minimælk 1 L', quantity: '2 stk', category: 'Mejeri', estimatedExpiry: offsetDate(7) },
-    { name: 'Smør 500g', quantity: '1 stk', category: 'Mejeri', estimatedExpiry: offsetDate(30) },
-    { name: 'Kyllingefilet', quantity: '500g', category: 'Kød & Fisk', estimatedExpiry: offsetDate(3) },
-    { name: 'Gulerødder', quantity: '1 pose', category: 'Grøntsager & Frugt', estimatedExpiry: offsetDate(14) },
-    { name: 'Appelsinjuice', quantity: '1 L', category: 'Drikkevarer', estimatedExpiry: offsetDate(10) },
-    { name: 'Fuldkornsbrød', quantity: '1 stk', category: 'Brød & Bagværk', estimatedExpiry: offsetDate(5) },
-];
+async function scanReceiptImage(file: File): Promise<ParsedReceiptItem[]> {
+    // Convert file to base64
+    const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result as string;
+            const commaIdx = result.indexOf(',');
+            if (!result.startsWith('data:') || commaIdx === -1) {
+                reject(new Error('FileReader produced an unexpected result format'));
+                return;
+            }
+            resolve(result.slice(commaIdx + 1));
+        };
+        reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+        reader.readAsDataURL(file);
+    });
 
-function offsetDate(days: number): string {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-}
+    const res = await fetch('/api/ai/scan-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type || 'image/jpeg' }),
+    });
 
-function simulateOcr(): Promise<ParsedReceiptItem[]> {
-    return new Promise(resolve => setTimeout(() => resolve(DEMO_ITEMS), 2000));
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as { error?: string };
+        throw new Error(err.error ?? `Scan failed: ${res.status}`);
+    }
+
+    const data = await res.json() as { items?: ParsedReceiptItem[] };
+    return data.items ?? [];
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -80,15 +95,33 @@ export function ReceiptScanPage() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
     const [addedCount, setAddedCount] = useState(0);
+    const [scanError, setScanError] = useState<string | null>(null);
     const [cameraOpen, setCameraOpen] = useState(false);
 
     const processFile = useCallback(async (file: File) => {
         setPreviewUrl(URL.createObjectURL(file));
         setStep('scanning');
-        const parsed = await simulateOcr();
-        setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
+        setScanError(null);
+
+        try {
+            const parsed = await scanReceiptImage(file);
+            if (parsed.length === 0) {
+                setScanError('Ingen varer fundet på kvitteringen. Prøv et klarere billede, eller tilføj varer manuelt.');
+            }
+            setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            setScanError(`Scanning fejlede: ${msg}. Du kan tilføje varer manuelt.`);
+            setReviewItems([]);
+        }
+
         setStep('review');
     }, []);
+
+    const handleCameraCapture = useCallback((file: File) => {
+        setCameraOpen(false);
+        processFile(file);
+    }, [processFile]);
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -123,9 +156,10 @@ export function ReceiptScanPage() {
                 id: crypto.randomUUID(),
                 name: r.name,
                 quantity: r.quantity,
+                price: r.price || null,
                 category: r.category,
                 purchasedAt: new Date().toISOString().slice(0, 10),
-                expiresAt: r.estimatedExpiry,
+                expiresAt: null, // Receipts do not carry expiry date information
                 opened: false,
                 openedAt: null,
             }));
@@ -138,13 +172,9 @@ export function ReceiptScanPage() {
         setStep('upload');
         setPreviewUrl(null);
         setReviewItems([]);
+        setScanError(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     }, []);
-
-    const handleCameraCapture = useCallback((file: File) => {
-        setCameraOpen(false);
-        processFile(file);
-    }, [processFile]);
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -204,18 +234,18 @@ export function ReceiptScanPage() {
                             onClick={() => fileInputRef.current?.click()}
                             style={{
                                 border: '2px dashed var(--border, #e5e7eb)',
-                                borderRadius: 12, padding: '60px 40px',
+                                borderRadius: 12, padding: '40px',
                                 textAlign: 'center', cursor: 'pointer',
                                 transition: 'border-color 0.2s',
                             }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary, #6366f1)')}
                             onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border, #e5e7eb)')}
                         >
-                            <Upload size={40} style={{ margin: '0 auto 16px', color: 'var(--muted-foreground, #9ca3af)' }} />
+                            <Upload size={32} style={{ margin: '0 auto 12px', color: 'var(--muted-foreground, #9ca3af)' }} />
                             <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 8px' }}>
                                 Træk og slip en kvittering hertil
                             </p>
-                            <p style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: '0 0 20px' }}>
+                            <p style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: '0 0 16px' }}>
                                 — eller klik for at vælge en fil (JPEG, PNG, PDF)
                             </p>
                             <button style={primaryBtnStyle}>
@@ -234,10 +264,13 @@ export function ReceiptScanPage() {
                             <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 8px' }}>💡 Sådan virker det</p>
                             <ol style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
                                 <li>Upload et billede af din kvittering</li>
-                                <li>AI analyserer og identificerer varerne</li>
+                                <li>AI scanner og identificerer ALLE varer og priser</li>
                                 <li>Gennemse og rediger listen før import</li>
                                 <li>Varerne tilføjes automatisk til køleskabet</li>
                             </ol>
+                            <p style={{ fontSize: 12, color: 'var(--muted-foreground, #6b7280)', margin: '8px 0 0' }}>
+                                ℹ️ Udløbsdatoer hentes ikke fra kvitteringen — tilføj dem manuelt via "Scan udløbsdato".
+                            </p>
                         </div>
                     </div>
                 )}
@@ -256,14 +289,14 @@ export function ReceiptScanPage() {
                         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
                         <p style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>Analyserer kvittering…</p>
                         <p style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: 0 }}>
-                            AI scanner og identificerer varer. Et øjeblik…
+                            AI scanner og identificerer alle varer og priser. Et øjeblik…
                         </p>
                     </div>
                 )}
 
                 {/* ── Step: Review ── */}
                 {step === 'review' && (
-                    <div style={{ maxWidth: 760, margin: '0 auto' }}>
+                    <div style={{ maxWidth: 860, margin: '0 auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                             <div>
                                 <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>
@@ -278,58 +311,79 @@ export function ReceiptScanPage() {
                             </button>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* Error / warning banner */}
+                        {scanError && (
+                            <div style={{
+                                display: 'flex', alignItems: 'flex-start', gap: 10,
+                                padding: 12, borderRadius: 8, marginBottom: 12,
+                                background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e',
+                            }}>
+                                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                                <span style={{ fontSize: 13 }}>{scanError}</span>
+                            </div>
+                        )}
+
+                        {/* Column headers */}
+                        {reviewItems.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '24px 2fr 1fr 1fr 1.5fr 28px', gap: 8, padding: '0 4px 6px', borderBottom: '1px solid var(--border, #e5e7eb)', marginBottom: 6 }}>
+                                <span />
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Varenavn</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Antal</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pris</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kategori</span>
+                                <span />
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {reviewItems.map(item => (
                                 <div
                                     key={item.id}
                                     style={{
-                                        padding: 12, borderRadius: 8,
+                                        padding: '8px 4px', borderRadius: 8,
                                         border: `1px solid ${item.selected ? 'var(--primary, #6366f1)' : 'var(--border, #e5e7eb)'}`,
                                         background: item.selected ? 'color-mix(in srgb, var(--primary, #6366f1) 5%, transparent)' : 'var(--muted, #f9fafb)',
                                         opacity: item.selected ? 1 : 0.5,
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '24px 2fr 1fr 1fr 1.5fr 28px', gap: 8, alignItems: 'center' }}>
                                         <input
                                             type="checkbox"
                                             checked={item.selected}
                                             onChange={() => toggleItem(item.id)}
-                                            style={{ marginTop: 3, cursor: 'pointer', flexShrink: 0 }}
+                                            style={{ cursor: 'pointer', flexShrink: 0 }}
                                         />
-                                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8 }}>
-                                            <input
-                                                value={item.name}
-                                                onChange={e => updateField(item.id, 'name', e.target.value)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                                placeholder="Varenavn"
-                                            />
-                                            <input
-                                                value={item.quantity}
-                                                onChange={e => updateField(item.id, 'quantity', e.target.value)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                                placeholder="Antal"
-                                            />
-                                            <select
-                                                value={item.category}
-                                                onChange={e => updateField(item.id, 'category', e.target.value)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                            >
-                                                {CATEGORY_OPTIONS.map(c => (
-                                                    <option key={c} value={c}>{c}</option>
-                                                ))}
-                                            </select>
-                                            <input
-                                                type="date"
-                                                value={item.estimatedExpiry ?? ''}
-                                                onChange={e => updateField(item.id, 'estimatedExpiry', e.target.value || null)}
-                                                disabled={!item.selected}
-                                                style={inputStyle}
-                                                title="Udløbsdato"
-                                            />
-                                        </div>
+                                        <input
+                                            value={item.name}
+                                            onChange={e => updateField(item.id, 'name', e.target.value)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                            placeholder="Varenavn"
+                                        />
+                                        <input
+                                            value={item.quantity}
+                                            onChange={e => updateField(item.id, 'quantity', e.target.value)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                            placeholder="Antal"
+                                        />
+                                        <input
+                                            value={item.price ?? ''}
+                                            onChange={e => updateField(item.id, 'price', e.target.value || null)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                            placeholder="Pris"
+                                        />
+                                        <select
+                                            value={item.category}
+                                            onChange={e => updateField(item.id, 'category', e.target.value)}
+                                            disabled={!item.selected}
+                                            style={inputStyle}
+                                        >
+                                            {CATEGORY_OPTIONS.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </select>
                                         <button
                                             onClick={() => removeItem(item.id)}
                                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground, #6b7280)', padding: 4, flexShrink: 0 }}
@@ -343,7 +397,7 @@ export function ReceiptScanPage() {
                             <button
                                 onClick={() => setReviewItems(prev => [...prev, {
                                     id: crypto.randomUUID(),
-                                    name: '', quantity: '1', category: 'Andet', estimatedExpiry: null, selected: true,
+                                    name: '', quantity: '1', price: null, category: 'Andet', selected: true,
                                 }])}
                                 style={{ ...secondaryBtnStyle, justifyContent: 'center', marginTop: 4 }}
                             >
@@ -384,6 +438,7 @@ export function ReceiptScanPage() {
                         </div>
                     </div>
                 )}
+
             </div>
         </div>
     );

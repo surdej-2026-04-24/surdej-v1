@@ -67,6 +67,7 @@ function newItem(overrides: Partial<FridgeItem> = {}): FridgeItem {
         id: crypto.randomUUID(),
         name: '',
         quantity: '1',
+        price: null,
         category: 'Andet',
         purchasedAt: new Date().toISOString().slice(0, 10),
         expiresAt: null,
@@ -440,6 +441,7 @@ export function FoodTrackerDashboardPage() {
                                     {item.expiresAt && (
                                         <span>Udløber: {new Date(item.expiresAt).toLocaleDateString('da-DK')}</span>
                                     )}
+                                    {item.price && <span>{item.price} kr</span>}
                                 </div>
 
                                 <button

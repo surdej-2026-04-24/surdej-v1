@@ -3,6 +3,7 @@
  *
  * REST + SSE endpoints for AI chat:
  *   POST /api/ai/chat          — streaming chat (SSE)
+ *   POST /api/ai/scan-receipt  — receipt image → structured item list (GPT-4o vision)
  *   GET  /api/ai/conversations — list user conversations
  *   GET  /api/ai/conversations/:id — get conversation with messages
  *   DELETE /api/ai/conversations/:id — delete conversation
@@ -529,6 +530,145 @@ export async function aiRoutes(app: FastifyInstance) {
                 })),
             }))
         );
+    });
+
+    /**
+     * POST /api/ai/scan-receipt — Parse a receipt image using GPT-4o vision
+     *
+     * Accepts a JSON body with { imageBase64: string, mimeType: string }.
+     * Returns an array of { name, quantity, price, category } objects extracted
+     * from the receipt. No expiry dates are inferred (receipts don't carry them).
+     */
+    app.post('/scan-receipt', async (req, reply) => {
+        if (!isAiConfigured()) {
+            return reply.status(503).send({
+                error: 'AI is not configured. Set AI_PROVIDER and API key environment variables.',
+                items: [],
+            });
+        }
+
+        const body = req.body as { imageBase64?: string; mimeType?: string };
+        if (!body.imageBase64 || !body.mimeType) {
+            return reply.status(400).send({ error: 'imageBase64 and mimeType are required' });
+        }
+
+        const dataUri = `data:${body.mimeType};base64,${body.imageBase64}`;
+
+        const systemPrompt = `Du er en ekspert i at aflæse detailhandelskvitteringer (supermarkeder, dagligvarer).
+Din opgave er at udtrække ALLE varer fra det uploadede kvitteringsbillede.
+
+REGLER:
+- Inkluder ABSOLUT ALLE produktlinjer fra kvitteringen — glem ingen
+- Brug det PRÆCISE produktnavn som det vises på kvitteringen — ingen oversættelse, ingen omdøbning
+- Opfind IKKE varer der ikke tydeligt fremgår af kvitteringen
+- Skriv IKKE udløbsdatoer — kvitteringer viser ikke udløbsdatoer
+- Pris: udtræk kun den endelige pris pr. linje som et tal med punktum som decimal-separator (f.eks. "29.95") — ingen valutasymboler
+- Kategoriser hver vare i én af disse kategorier: "Mejeri", "Kød & Fisk", "Grøntsager & Frugt", "Drikkevarer", "Brød & Bagværk", "Dåse & Konserves", "Frost", "Andet"
+
+Svar KUN med et rent JSON array (ingen markdown, ingen forklaring):
+[
+  {"name": "...", "quantity": "...", "price": "...", "category": "..."},
+  ...
+]`;
+
+        const userPrompt = 'Analyser denne kvittering og udtræk ALLE varer med navn, antal, pris og kategori.';
+
+        const endpoint = process.env['AZURE_OPENAI_ENDPOINT'];
+        const apiKey = process.env['AZURE_OPENAI_API_KEY'];
+        const apiVersion = process.env['AZURE_OPENAI_API_VERSION'] || '2024-08-01-preview';
+        const visionModel = process.env['AZURE_OPENAI_MODEL_LOW'] || 'gpt-4o';
+
+        const openaiApiKey = process.env['OPENAI_API_KEY'];
+
+        try {
+            let responseText: string;
+
+            if (endpoint && apiKey) {
+                // Azure OpenAI
+                const cleanEndpoint = endpoint.replace(/\/$/, '');
+                const chatUrl = `${cleanEndpoint}/openai/deployments/${visionModel}/chat/completions?api-version=${apiVersion}`;
+                const res = await fetch(chatUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
+                    body: JSON.stringify({
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            {
+                                role: 'user',
+                                content: [
+                                    { type: 'image_url', image_url: { url: dataUri, detail: 'high' } },
+                                    { type: 'text', text: userPrompt },
+                                ],
+                            },
+                        ],
+                        max_tokens: 2000,
+                        temperature: 0,
+                    }),
+                    signal: AbortSignal.timeout(60_000),
+                });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    app.log.error(`[AI] scan-receipt Azure error ${res.status}: ${errText}`);
+                    return reply.status(502).send({ error: `AI vision request failed: ${res.status}`, items: [] });
+                }
+
+                const json = await res.json() as { choices: { message: { content: string } }[] };
+                responseText = json.choices?.[0]?.message?.content ?? '[]';
+
+            } else if (openaiApiKey) {
+                // OpenAI fallback
+                const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
+                    body: JSON.stringify({
+                        model: process.env['OPENAI_MODEL_LOW'] || 'gpt-4o',
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            {
+                                role: 'user',
+                                content: [
+                                    { type: 'image_url', image_url: { url: dataUri, detail: 'high' } },
+                                    { type: 'text', text: userPrompt },
+                                ],
+                            },
+                        ],
+                        max_tokens: 2000,
+                        temperature: 0,
+                    }),
+                    signal: AbortSignal.timeout(60_000),
+                });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    app.log.error(`[AI] scan-receipt OpenAI error ${res.status}: ${errText}`);
+                    return reply.status(502).send({ error: `AI vision request failed: ${res.status}`, items: [] });
+                }
+
+                const json = await res.json() as { choices: { message: { content: string } }[] };
+                responseText = json.choices?.[0]?.message?.content ?? '[]';
+
+            } else {
+                return reply.status(503).send({ error: 'AI not configured', items: [] });
+            }
+
+            // Strip any markdown code fences the model might have added
+            const cleaned = responseText.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+
+            let items: { name: string; quantity: string; price: string; category: string }[];
+            try {
+                items = JSON.parse(cleaned);
+                if (!Array.isArray(items)) items = [];
+            } catch {
+                app.log.error(`[AI] scan-receipt: Failed to parse JSON response: ${cleaned}`);
+                items = [];
+            }
+
+            return reply.send({ items });
+        } catch (err) {
+            app.log.error('[AI] scan-receipt error:', err);
+            return reply.status(500).send({ error: String(err), items: [] });
+        }
     });
 
     /**
