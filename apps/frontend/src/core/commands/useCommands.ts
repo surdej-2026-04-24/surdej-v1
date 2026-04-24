@@ -276,6 +276,13 @@ export function useCoreCommands() {
                 execute: () => navigate('/modules/food-tracker/scan'),
             },
             {
+                id: 'domain.food-tracker.scan-expiry',
+                label: 'Digital Køleskab — Scan Udløbsdato',
+                group: 'Digital Køleskab',
+                icon: 'Camera',
+                execute: () => navigate('/modules/food-tracker/scan-expiry'),
+            },
+            {
                 id: 'domain.food-tracker.recipes',
                 label: 'Digital Køleskab — Opskriftforslag',
                 group: 'Digital Køleskab',

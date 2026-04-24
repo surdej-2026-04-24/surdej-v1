@@ -81,6 +81,7 @@ import { NosqlCollectionPage } from '@/routes/modules/nosql/NosqlCollectionPage'
 // ─── Domain: Digital Køleskab (Food Tracker) ───────────────────
 import { FoodTrackerDashboardPage } from '@/routes/modules/food-tracker/FoodTrackerDashboardPage';
 import { ReceiptScanPage } from '@/routes/modules/food-tracker/ReceiptScanPage';
+import { ExpiryDateScanPage } from '@/routes/modules/food-tracker/ExpiryDateScanPage';
 import { RecipeSuggestionsPage } from '@/routes/modules/food-tracker/RecipeSuggestionsPage';
 
 // ─── Domain: Poster Tracker ────────────────────────────────────
@@ -229,6 +230,7 @@ function AuthenticatedApp() {
                     {/* ─── Digital Køleskab (Food Tracker) Module ─── */}
                     <Route path="modules/food-tracker" element={<FoodTrackerDashboardPage />} />
                     <Route path="modules/food-tracker/scan" element={<ReceiptScanPage />} />
+                    <Route path="modules/food-tracker/scan-expiry" element={<ExpiryDateScanPage />} />
                     <Route path="modules/food-tracker/recipes" element={<RecipeSuggestionsPage />} />
 
                     {/* ─── Poster Tracker Module ─── */}
