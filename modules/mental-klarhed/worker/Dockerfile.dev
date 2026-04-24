@@ -1,0 +1,20 @@
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# ── Install ──
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY tsconfig.json ./
+COPY modules/mental-klarhed/shared/package.json modules/mental-klarhed/shared/
+COPY modules/mental-klarhed/worker/package.json modules/mental-klarhed/worker/
+RUN pnpm install --frozen-lockfile
+
+# ── Copy source ──
+COPY modules/mental-klarhed/shared/ modules/mental-klarhed/shared/
+COPY modules/mental-klarhed/worker/ modules/mental-klarhed/worker/
+
+# ── Generate Prisma client ──
+RUN pnpm --filter @surdej/module-mental-klarhed-worker prisma:generate
+
+# ── Run with tsx ──
+CMD ["pnpm", "--filter", "@surdej/module-mental-klarhed-worker", "dev"]

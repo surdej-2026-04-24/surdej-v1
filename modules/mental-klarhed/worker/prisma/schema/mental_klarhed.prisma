@@ -1,0 +1,125 @@
+generator client {
+    provider        = "prisma-client-js"
+    output          = "../../node_modules/.prisma/mental-klarhed-client"
+    previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    schemas  = ["mental_klarhed"]
+}
+
+// ─── Klient ────────────────────────────────────────────────────
+model Client {
+    id          String       @id @default(uuid())
+    email       String       @unique
+    name        String
+    locale      String       @default("da")
+    consentAt   DateTime?
+    deletedAt   DateTime?    // GDPR: soft-delete
+    programmes  Programme[]
+    magicLinks  MagicLink[]
+    createdAt   DateTime     @default(now())
+    updatedAt   DateTime     @updatedAt
+
+    @@schema("mental_klarhed")
+}
+
+// ─── Forløb ────────────────────────────────────────────────────
+model Programme {
+    id          String          @id @default(uuid())
+    clientId    String
+    client      Client          @relation(fields: [clientId], references: [id])
+    status      ProgrammeStatus @default(INVITED)
+    startedAt   DateTime?
+    completedAt DateTime?
+    sessions    Session[]
+    assessments Assessment[]
+    createdAt   DateTime        @default(now())
+    updatedAt   DateTime        @updatedAt
+
+    @@schema("mental_klarhed")
+}
+
+enum ProgrammeStatus {
+    INVITED
+    ACTIVE
+    COMPLETED
+    CANCELLED
+
+    @@schema("mental_klarhed")
+}
+
+// ─── Session ───────────────────────────────────────────────────
+model Session {
+    id            String              @id @default(uuid())
+    programmeId   String
+    programme     Programme           @relation(fields: [programmeId], references: [id])
+    sessionNumber Int
+    scheduledAt   DateTime?
+    status        SessionStatus       @default(PENDING)
+    assessment    Assessment?
+    material      PreSessionMaterial?
+    createdAt     DateTime            @default(now())
+    updatedAt     DateTime            @updatedAt
+
+    @@schema("mental_klarhed")
+}
+
+enum SessionStatus {
+    PENDING
+    ASSESSMENT_SENT
+    ASSESSMENT_DONE
+    MATERIAL_GENERATED
+    MATERIAL_SENT
+    COMPLETED
+
+    @@schema("mental_klarhed")
+}
+
+// ─── Livshjulet-assessment ─────────────────────────────────────
+model Assessment {
+    id          String     @id @default(uuid())
+    programmeId String
+    programme   Programme  @relation(fields: [programmeId], references: [id])
+    sessionId   String?    @unique
+    session     Session?   @relation(fields: [sessionId], references: [id])
+    isInitial   Boolean    @default(false)
+    isFinal     Boolean    @default(false)
+    scores      Json
+    notes       Json
+    completedAt DateTime?
+    createdAt   DateTime   @default(now())
+
+    @@schema("mental_klarhed")
+}
+
+// ─── AI-genereret materiale ────────────────────────────────────
+model PreSessionMaterial {
+    id          String    @id @default(uuid())
+    sessionId   String    @unique
+    session     Session   @relation(fields: [sessionId], references: [id])
+    pdfContent  String
+    pdfUrl      String?
+    videoScript String
+    generatedAt DateTime  @default(now())
+    sentAt      DateTime?
+
+    @@schema("mental_klarhed")
+}
+
+// ─── Magic-links ───────────────────────────────────────────────
+model MagicLink {
+    id        String    @id @default(uuid())
+    clientId  String
+    client    Client    @relation(fields: [clientId], references: [id])
+    token     String    @unique
+    purpose   String
+    sessionId String?
+    expiresAt DateTime
+    usedAt    DateTime?
+    createdAt DateTime  @default(now())
+
+    @@schema("mental_klarhed")
+}

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
-    ScanLine, Upload, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw, AlertCircle,
+    ScanLine, Upload, Camera, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
@@ -89,6 +89,7 @@ const secondaryBtnStyle: React.CSSProperties = {
 export function ReceiptScanPage() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<Step>('upload');
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -167,6 +168,7 @@ export function ReceiptScanPage() {
         setReviewItems([]);
         setScanError(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+        if (cameraInputRef.current) cameraInputRef.current.value = '';
     }, []);
 
     return (
@@ -202,30 +204,51 @@ export function ReceiptScanPage() {
                 {/* ── Step: Upload ── */}
                 {step === 'upload' && (
                     <div style={{ maxWidth: 560, margin: '0 auto' }}>
+                        {/* Camera capture button (prominent on mobile) */}
+                        <button
+                            onClick={() => cameraInputRef.current?.click()}
+                            style={{
+                                ...primaryBtnStyle,
+                                width: '100%', justifyContent: 'center',
+                                padding: '14px 20px', fontSize: 15, borderRadius: 10,
+                                marginBottom: 16,
+                            }}
+                        >
+                            <Camera size={18} /> Tag billede med kamera
+                        </button>
+
                         <div
                             onDrop={handleDrop}
                             onDragOver={e => e.preventDefault()}
                             onClick={() => fileInputRef.current?.click()}
                             style={{
                                 border: '2px dashed var(--border, #e5e7eb)',
-                                borderRadius: 12, padding: '60px 40px',
+                                borderRadius: 12, padding: '40px',
                                 textAlign: 'center', cursor: 'pointer',
                                 transition: 'border-color 0.2s',
                             }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary, #6366f1)')}
                             onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border, #e5e7eb)')}
                         >
-                            <Upload size={40} style={{ margin: '0 auto 16px', color: 'var(--muted-foreground, #9ca3af)' }} />
+                            <Upload size={32} style={{ margin: '0 auto 12px', color: 'var(--muted-foreground, #9ca3af)' }} />
                             <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 8px' }}>
                                 Træk og slip en kvittering hertil
                             </p>
-                            <p style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: '0 0 20px' }}>
+                            <p style={{ fontSize: 13, color: 'var(--muted-foreground, #6b7280)', margin: '0 0 16px' }}>
                                 — eller klik for at vælge en fil (JPEG, PNG, PDF)
                             </p>
                             <button style={primaryBtnStyle}>
                                 <Upload size={14} /> Vælg fil
                             </button>
                         </div>
+                        <input
+                            ref={cameraInputRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleFileChange}
+                            style={{ display: 'none' }}
+                        />
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -412,6 +435,7 @@ export function ReceiptScanPage() {
                         </div>
                     </div>
                 )}
+
             </div>
         </div>
     );

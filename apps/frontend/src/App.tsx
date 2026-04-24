@@ -88,6 +88,9 @@ import { RecipeSuggestionsPage } from '@/routes/modules/food-tracker/RecipeSugge
 import { ConverterPage } from '@/routes/modules/converter/ConverterPage';
 // ─── Domain: Poster Tracker ────────────────────────────────────
 import { PosterTrackerDashboardPage } from '@/routes/modules/poster-tracker/PosterTrackerDashboardPage';
+import { PosterAddPage } from '@/routes/modules/poster-tracker/PosterAddPage';
+import { PosterTeamsPage } from '@/routes/modules/poster-tracker/PosterTeamsPage';
+import { PosterPantPage } from '@/routes/modules/poster-tracker/PosterPantPage';
 
 // ─── Hub Pages ─────────────────────────────────────────────────
 import { PlatformPage } from '@/routes/platform/PlatformPage';
@@ -239,6 +242,9 @@ function AuthenticatedApp() {
                     <Route path="modules/converter" element={<ConverterPage />} />
                     {/* ─── Poster Tracker Module ─── */}
                     <Route path="modules/poster-tracker" element={<PosterTrackerDashboardPage />} />
+                    <Route path="modules/poster-tracker/add" element={<PosterAddPage />} />
+                    <Route path="modules/poster-tracker/teams" element={<PosterTeamsPage />} />
+                    <Route path="modules/poster-tracker/pant" element={<PosterPantPage />} />
 
                     {/* ─── Core Issues Module ─── */}
                     <Route path="modules/core-issues" element={<ModuleLayout />}>
