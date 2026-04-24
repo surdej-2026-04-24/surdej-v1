@@ -88,13 +88,15 @@ function AddItemModal({ initial, onSave, onCancel }: AddItemModalProps) {
     const [form, setForm] = useState<FridgeItem>(() => newItem(initial));
     const [suggestions, setSuggestions] = useState<typeof PRODUCT_SUGGESTIONS>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    // Allow onMouseDown on suggestion buttons to fire before onBlur hides the list
+    const SUGGESTION_HIDE_DELAY_MS = 150;
 
     const set = <K extends keyof FridgeItem>(key: K, value: FridgeItem[K]) =>
         setForm(prev => ({ ...prev, [key]: value }));
 
     const handleNameChange = (value: string) => {
         set('name', value);
-        if (value.trim().length >= 1) {
+        if (value.trim()) {
             const q = value.toLowerCase();
             const matches = PRODUCT_SUGGESTIONS.filter(p =>
                 p.name.toLowerCase().includes(q)
@@ -135,7 +137,7 @@ function AddItemModal({ initial, onSave, onCancel }: AddItemModalProps) {
                             <input
                                 value={form.name}
                                 onChange={e => handleNameChange(e.target.value)}
-                                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                                onBlur={() => setTimeout(() => setShowSuggestions(false), SUGGESTION_HIDE_DELAY_MS)}
                                 placeholder="f.eks. Rugbrød 1,1 kg"
                                 style={inputStyle}
                                 autoComplete="off"
