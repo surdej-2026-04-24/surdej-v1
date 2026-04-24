@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router';
 import {
     Camera, Upload, Loader2, CheckCircle2, ArrowLeft, Plus, Trash2, RefreshCw,
 } from 'lucide-react';
+import { CameraCapture } from './CameraCapture';
 import {
     loadFridgeItems, saveFridgeItems, CATEGORY_OPTIONS, type FridgeItem,
 } from './fridgeStore';
+import { fileToBase64 } from './scanUtils';
 
-// ─── Simulated AI / OCR vision parsing ────────────────────────────────────────
-// In production this would call an AI vision endpoint (e.g. Azure OpenAI GPT-4o)
-// to detect product names and read expiry dates from the photo.
+// ─── AI expiry date parsing ────────────────────────────────────────────────────
 
 interface ParsedExpiryItem {
     name: string;
@@ -18,30 +18,52 @@ interface ParsedExpiryItem {
     expiryDate: string | null; // ISO date read from the product label
 }
 
-function offsetDate(days: number): string {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-}
+const EXPIRY_PROMPT = `Du er en udløbsdato-scanner. Se på dette billede af én eller flere dagligvarer og udtræk produktnavne og udløbsdatoer.
+Returner KUN et gyldigt JSON array uden yderligere tekst. Hvert element skal have:
+- "name": produktnavn (string)
+- "quantity": mængde/antal f.eks. "1 stk", "500g" (string)
+- "category": én af: "Mejeri", "Kød & Fisk", "Grøntsager & Frugt", "Drikkevarer", "Brød & Bagværk", "Frost", "Kolonial", "Hygiejne & Rengøring", "Andet"
+- "expiryDate": udløbsdatoen præcis som den er angivet på etiketten, konverteret til YYYY-MM-DD format, eller null hvis ikke synlig
 
-const DEMO_ITEMS: ParsedExpiryItem[] = [
-    { name: 'Minimælk 1 L', quantity: '1 stk', category: 'Mejeri', expiryDate: offsetDate(8) },
-    { name: 'Smør 500g', quantity: '1 stk', category: 'Mejeri', expiryDate: offsetDate(32) },
-    { name: 'Æg 10 stk', quantity: '1 bakke', category: 'Mejeri', expiryDate: offsetDate(18) },
-    { name: 'Kyllingefilet', quantity: '500g', category: 'Kød & Fisk', expiryDate: offsetDate(3) },
-    { name: 'Rugbrød 1,1 kg', quantity: '1 stk', category: 'Brød & Bagværk', expiryDate: offsetDate(7) },
-    { name: 'Appelsinjuice 1 L', quantity: '1 stk', category: 'Drikkevarer', expiryDate: offsetDate(11) },
-    { name: 'Sodavand 6-pak', quantity: '1 pak', category: 'Drikkevarer', expiryDate: offsetDate(365) },
-    { name: 'Vingummibamser', quantity: '200g', category: 'Slik & Snacks', expiryDate: offsetDate(180) },
-];
+Eksempel: [{"name":"Minimælk 1 L","quantity":"1 stk","category":"Mejeri","expiryDate":"2025-05-01"}]`;
 
-function simulateVisionScan(): Promise<ParsedExpiryItem[]> {
-    return new Promise(resolve => setTimeout(() => resolve(DEMO_ITEMS), 2200));
+async function scanExpiryWithAI(file: File): Promise<ParsedExpiryItem[]> {
+    const imageBase64 = await fileToBase64(file);
+
+    const res = await fetch('/api/module/core-openai/image-to-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            imageBase64,
+            imageMimeType: file.type || 'image/jpeg',
+            prompt: EXPIRY_PROMPT,
+            model: 'gpt-4o',
+            maxTokens: 2048,
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error(`AI analyse fejlede: ${res.status}`);
+    }
+
+    const data = await res.json() as { description: string };
+    const text = data.description.trim();
+
+    // Extract JSON array from the response (handle markdown code blocks if present)
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+
+    try {
+        const items = JSON.parse(jsonMatch[0]) as ParsedExpiryItem[];
+        return Array.isArray(items) ? items : [];
+    } catch {
+        throw new Error('AI returnerede ugyldigt format. Prøv igen.');
+    }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = 'upload' | 'scanning' | 'review' | 'done';
+type Step = 'upload' | 'scanning' | 'review' | 'done' | 'error';
 
 interface ReviewItem extends ParsedExpiryItem {
     id: string;
@@ -77,20 +99,26 @@ const secondaryBtnStyle: React.CSSProperties = {
 export function ExpiryDateScanPage() {
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<Step>('upload');
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
     const [addedCount, setAddedCount] = useState(0);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [cameraOpen, setCameraOpen] = useState(false);
 
     const processFile = useCallback(async (file: File) => {
         setPreviewUrl(URL.createObjectURL(file));
         setStep('scanning');
-
-        const parsed = await simulateVisionScan();
-        setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
-        setStep('review');
+        setErrorMessage(null);
+        try {
+            const parsed = await scanExpiryWithAI(file);
+            setReviewItems(parsed.map(p => ({ ...p, id: crypto.randomUUID(), selected: true })));
+            setStep('review');
+        } catch (err) {
+            setErrorMessage(err instanceof Error ? err.message : 'Ukendt fejl');
+            setStep('error');
+        }
     }, []);
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,6 +154,7 @@ export function ExpiryDateScanPage() {
                 id: crypto.randomUUID(),
                 name: r.name,
                 quantity: r.quantity,
+                price: null,
                 category: r.category,
                 purchasedAt: new Date().toISOString().slice(0, 10),
                 expiresAt: r.expiryDate,
@@ -142,11 +171,21 @@ export function ExpiryDateScanPage() {
         setPreviewUrl(null);
         setReviewItems([]);
         if (fileInputRef.current) fileInputRef.current.value = '';
-        if (cameraInputRef.current) cameraInputRef.current.value = '';
     }, []);
+
+    const handleCameraCapture = useCallback((file: File) => {
+        setCameraOpen(false);
+        processFile(file);
+    }, [processFile]);
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {cameraOpen && (
+                <CameraCapture
+                    onCapture={handleCameraCapture}
+                    onClose={() => setCameraOpen(false)}
+                />
+            )}
             {/* Header */}
             <div style={{
                 padding: '16px 24px',
@@ -180,7 +219,7 @@ export function ExpiryDateScanPage() {
                     <div style={{ maxWidth: 560, margin: '0 auto' }}>
                         {/* Camera capture button (prominent on mobile) */}
                         <button
-                            onClick={() => cameraInputRef.current?.click()}
+                            onClick={() => setCameraOpen(true)}
                             style={{
                                 ...primaryBtnStyle,
                                 width: '100%', justifyContent: 'center',
@@ -218,14 +257,6 @@ export function ExpiryDateScanPage() {
                         </div>
 
                         {/* Hidden inputs */}
-                        <input
-                            ref={cameraInputRef}
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={handleFileChange}
-                            style={{ display: 'none' }}
-                        />
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -386,6 +417,20 @@ export function ExpiryDateScanPage() {
                                 Se køleskabet
                             </button>
                         </div>
+                    </div>
+                )}
+
+                {/* ── Step: Error ── */}
+                {step === 'error' && (
+                    <div style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center' }}>
+                        <p style={{ fontSize: 40, margin: '0 auto 16px' }}>⚠️</p>
+                        <p style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>Scanning fejlede</p>
+                        <p style={{ fontSize: 14, color: 'var(--muted-foreground, #6b7280)', margin: '0 0 24px' }}>
+                            {errorMessage ?? 'Kunne ikke analysere billedet. Prøv igen med et tydeligere billede.'}
+                        </p>
+                        <button onClick={handleReset} style={primaryBtnStyle}>
+                            <RefreshCw size={14} /> Prøv igen
+                        </button>
                     </div>
                 )}
             </div>
