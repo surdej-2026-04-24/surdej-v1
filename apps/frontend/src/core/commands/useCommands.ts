@@ -259,6 +259,29 @@ export function useCoreCommands() {
                 icon: 'FolderPlus',
                 execute: () => navigate('/modules/nosql/collections?action=new'),
             },
+
+            // ─── Digital Køleskab (Food Tracker) ───
+            {
+                id: 'domain.food-tracker.dashboard',
+                label: 'Digital Køleskab — Oversigt',
+                group: 'Digital Køleskab',
+                icon: 'Refrigerator',
+                execute: () => navigate('/modules/food-tracker'),
+            },
+            {
+                id: 'domain.food-tracker.scan',
+                label: 'Digital Køleskab — Scan Kvittering',
+                group: 'Digital Køleskab',
+                icon: 'ScanLine',
+                execute: () => navigate('/modules/food-tracker/scan'),
+            },
+            {
+                id: 'domain.food-tracker.recipes',
+                label: 'Digital Køleskab — Opskriftforslag',
+                group: 'Digital Køleskab',
+                icon: 'ChefHat',
+                execute: () => navigate('/modules/food-tracker/recipes'),
+            },
         ];
 
         for (const cmd of commands) {
