@@ -172,6 +172,16 @@ export async function authRoutes(app: FastifyInstance) {
         return { found: false };
     });
 
+    // GET /api/auth/demo-users — list all demo users (for the Demo Login dialog)
+    app.get('/demo-users', async (_req, reply) => {
+        const users = await prisma.user.findMany({
+            where: { isDemoUser: true, deletedAt: null },
+            select: { id: true, email: true, name: true, displayName: true, role: true, avatarUrl: true },
+            orderBy: [{ role: 'asc' }, { name: 'asc' }],
+        });
+        return reply.send({ users });
+    });
+
     // ─── Dev-only: Impersonation ─────────────────────────────────────
     // These endpoints are only available in non-production environments.
 

@@ -27,8 +27,9 @@ sleep 5 && docker compose ps --format "table {{.Name}}\t{{.Status}}" | head -10
 ```
 
 5. **Build Shared Packages**
-   - Run: `pnpm --filter @surdej/core build`
-   - This compiles `packages/core` to `dist/` — required by the frontend and other consumers that reference `@surdej/core` via its `exports` field.
+   - Run: `pnpm --filter @surdej/core build && pnpm --filter "@surdej/module-*-shared" build`
+   - This compiles `packages/core` and all module shared packages to `dist/` — required by the frontend and other consumers that reference them via their `exports` field.
+   - Module shared packages (e.g. `@surdej/module-member-nosql-shared`) must be built before the frontend dev server can start, otherwise Vite's dep-scan will fail to resolve them.
 
 ### 6. Run Database Migrations
 **Run VS Code task:** `DB: Prisma Migrate`

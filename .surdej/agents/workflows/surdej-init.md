@@ -26,10 +26,11 @@ Configure a new workstation (physical or Codespace) for the Surdej platform. Thi
 
 4. **Install & Build Dependencies**
    - Run `pnpm install`.
-   - Explicitly build core packages to prevent resolution errors:
+   - Explicitly build core and all module shared packages to prevent resolution errors:
      ```bash
      pnpm --filter @surdej/core build
      pnpm --filter @surdej/types build
+     pnpm --filter "@surdej/module-*-shared" build
      ```
 
 5. **Initialize Database & Docker**

@@ -27,11 +27,9 @@ COPY modules/ modules/
 COPY contracts/ contracts/
 COPY tsconfig.json ./
 
-# Build core first
-RUN pnpm --filter @surdej/core build
-
-# Build shared modules referenced by UI
-    pnpm --filter @surdej/module-member-nosql-shared build
+# Build core and all module shared packages first
+RUN pnpm --filter @surdej/core build && \
+    pnpm --filter "@surdej/module-*-shared" build
 
 # Build frontend (Vite)
 ARG VITE_API_URL=

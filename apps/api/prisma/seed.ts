@@ -37,6 +37,15 @@ async function seed() {
         { email: 'developer@surdej.dev', name: 'Developer', displayName: 'Dev', role: 'ADMIN' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4522222222', pinHash },
         { email: 'member@surdej.dev', name: 'Team Member', displayName: 'Member', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4533333333', pinHash },
         { email: 'guest@surdej.dev', name: 'Guest User', displayName: 'Guest', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4544444444', pinHash },
+        { email: 'lene@demo-burger.surdej.dev', name: 'Lene', displayName: 'Lene', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4551111111', pinHash },
+        { email: 'puff@demo-burger.surdej.dev', name: 'Puff', displayName: 'Puff', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4552222222', pinHash },
+        { email: 'henrik@demo-burger.surdej.dev', name: 'Henrik', displayName: 'Henrik', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4553333333', pinHash },
+        { email: 'mikkel@demo-burger.surdej.dev', name: 'Mikkel', displayName: 'Mikkel', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4554444444', pinHash },
+        { email: 'viktor@demo-burger.surdej.dev', name: 'Viktor', displayName: 'Viktor', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4555555555', pinHash },
+        { email: 'betina@demo-burger.surdej.dev', name: 'Betina', displayName: 'Betina', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4556666666', pinHash },
+        { email: 'oskar@demo-burger.surdej.dev', name: 'Oskar', displayName: 'Oskar', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4557777777', pinHash },
+        { email: 'asger@demo-burger.surdej.dev', name: 'Asger', displayName: 'Asger', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4558888888', pinHash },
+        { email: 'isabel@demo-burger.surdej.dev', name: 'Isabel', displayName: 'Isabel', role: 'MEMBER' as const, isDemoUser: true, tenantId: demoTenant.id, phone: '+4559999999', pinHash },
     ];
 
     for (const userData of users) {

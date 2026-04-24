@@ -69,6 +69,7 @@ export function LoginPage() {
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
+  const [demoSearch, setDemoSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [tenant, setTenant] = useState<any>(null); // Resolved tenant from hostname
   const [apiHealthy, setApiHealthy] = useState<boolean>(true); // Assume healthy initially
@@ -113,44 +114,28 @@ export function LoginPage() {
     resolveHost();
   }, [apiHealthy]);
 
-  // Hardcoded demo users
-  const demoUsers: DemoUserOption[] = [
-    {
-      id: 'u1',
-      email: 'admin@surdej.dev',
-      name: 'Admin User',
-      displayName: 'Admin',
-      role: 'SUPER_ADMIN',
-    },
-    {
-      id: 'u2',
-      email: 'developer@surdej.dev',
-      name: 'Developer',
-      displayName: 'Dev',
-      role: 'ADMIN',
-    },
-    {
-      id: 'u3',
-      email: 'member@surdej.dev',
-      name: 'Team Member',
-      displayName: 'Member',
-      role: 'MEMBER',
-    },
-    {
-      id: 'u4',
-      email: 'guest@surdej.dev',
-      name: 'Guest User',
-      displayName: 'Guest',
-      role: 'MEMBER',
-    },
-    {
-      id: 'u5',
-      email: 'supply@surdej.dev',
-      name: 'Supply Chain User',
-      displayName: 'Supply Chain',
-      role: 'ADMIN',
-    },
+  // Fallback demo users (used when API is unreachable)
+  const fallbackDemoUsers: DemoUserOption[] = [
+    { id: 'u1', email: 'admin@surdej.dev', name: 'Admin User', displayName: 'Admin', role: 'SUPER_ADMIN' },
+    { id: 'u2', email: 'developer@surdej.dev', name: 'Developer', displayName: 'Dev', role: 'ADMIN' },
+    { id: 'u3', email: 'member@surdej.dev', name: 'Team Member', displayName: 'Member', role: 'MEMBER' },
+    { id: 'u4', email: 'guest@surdej.dev', name: 'Guest User', displayName: 'Guest', role: 'MEMBER' },
   ];
+
+  const [demoUsers, setDemoUsers] = useState<DemoUserOption[]>(fallbackDemoUsers);
+  const [demoUsersLoading, setDemoUsersLoading] = useState(false);
+
+  const fetchDemoUsers = async () => {
+    setDemoUsersLoading(true);
+    try {
+      const res = await api.get<{ users: DemoUserOption[] }>('/auth/demo-users');
+      if (res.users?.length) setDemoUsers(res.users);
+    } catch {
+      // keep fallback list
+    } finally {
+      setDemoUsersLoading(false);
+    }
+  };
 
   const handleDemoLogin = async (userEmail: string) => {
     setLoading(true);
@@ -699,43 +684,83 @@ export function LoginPage() {
       <p className="mt-8 text-xs text-muted-foreground text-center max-w-sm z-[2]">
         Protected by Surdej Auth. v{__APP_VERSION__}{' '}
         {isDev ? (
-          <Dialog>
+          <Dialog onOpenChange={(open) => { if (open) { setDemoSearch(''); fetchDemoUsers(); } }}>
             <DialogTrigger asChild>
               <button className="underline hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm cursor-pointer">
                 {t('auth.demoMode')}
               </button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Demo Login</DialogTitle>
                 <DialogDescription>
-                  Select a predefined user to sign in immediately.
-                  {!apiHealthy && (
-                    <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 text-xs rounded flex items-center gap-2">
-                      <AlertCircle className="h-3 w-3" />
-                      Warning: API is unreachable. Login may fail.
-                    </div>
-                  )}
+                  Select a user to sign in immediately.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-2 pt-2">
-                {demoUsers.map((user) => (
-                  <Button
-                    key={user.id}
-                    variant="outline"
-                    className="justify-start h-auto py-3 px-4 mb-2 cursor-pointer transition-colors hover:bg-muted"
-                    onClick={() => handleDemoLogin(user.email)}
-                    disabled={loading}
-                  >
-                    <div className="flex flex-col items-start gap-1 text-left w-full">
-                      <span className="font-medium">{user.name}</span>
-                      <span className="text-xs text-muted-foreground truncate w-full">
-                        {user.role} • {user.email}
-                      </span>
-                    </div>
-                    <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground shrink-0" />
-                  </Button>
-                ))}
+              {!apiHealthy && (
+                <div className="px-1 py-2 bg-yellow-100 text-yellow-800 text-xs rounded flex items-center gap-2">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  Warning: API is unreachable. Login may fail.
+                </div>
+              )}
+              <Input
+                placeholder="Search by name…"
+                value={demoSearch}
+                onChange={(e) => setDemoSearch(e.target.value)}
+                className="mt-1"
+                autoFocus
+              />
+              <div className="overflow-y-auto max-h-80 mt-1 -mx-1 px-1 space-y-1">
+                {demoUsersLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
+                    {demoUsers
+                      .filter((u) =>
+                        (u.name ?? '').toLowerCase().includes(demoSearch.toLowerCase()),
+                      )
+                      .map((user) => {
+                        const initials = (user.displayName ?? user.name ?? '?')
+                          .split(' ')
+                          .map((w) => w[0])
+                          .join('')
+                          .toUpperCase()
+                          .slice(0, 2);
+                        const roleBadgeColor =
+                          user.role === 'SUPER_ADMIN'
+                            ? 'bg-red-100 text-red-700'
+                            : user.role === 'ADMIN'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-gray-100 text-gray-600';
+                        return (
+                          <button
+                            key={user.id}
+                            className="w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left hover:bg-muted transition-colors disabled:opacity-50 cursor-pointer"
+                            onClick={() => handleDemoLogin(user.email)}
+                            disabled={loading}
+                          >
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-sm leading-tight">{user.name}</div>
+                              <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                            </div>
+                            <span className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${roleBadgeColor}`}>
+                              {user.role === 'SUPER_ADMIN' ? 'Super Admin' : user.role === 'ADMIN' ? 'Admin' : 'Member'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    {demoUsers.filter((u) =>
+                      (u.name ?? '').toLowerCase().includes(demoSearch.toLowerCase()),
+                    ).length === 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-6">No users match "{demoSearch}"</p>
+                    )}
+                  </>
+                )}
               </div>
             </DialogContent>
           </Dialog>
