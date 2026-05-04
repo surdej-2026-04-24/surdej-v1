@@ -521,3 +521,23 @@
   margin: 0.75em 0;
   border-radius: 8px;
 }
+/* ─── ID Card Printer Module ─── */
+.icp-element:hover {
+  outline: 1.5px solid rgba(99, 102, 241, 0.5);
+  outline-offset: 2px;
+}
+
+.icp-dragging {
+  opacity: 0.85;
+  z-index: 100 !important;
+  outline: 2px solid rgba(255, 255, 255, 0.8) !important;
+  outline-offset: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.icp-resizing {
+  z-index: 100 !important;
+  outline: 2px solid rgba(99, 102, 241, 0.9) !important;
+  outline-offset: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}

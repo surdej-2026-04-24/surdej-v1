@@ -92,6 +92,8 @@ import { RecipeSuggestionsPage } from '@/routes/modules/food-tracker/RecipeSugge
 
 // ─── Domain: Opskrift-Konverter (Pattern Converter) ─────────────
 import { ConverterPage } from '@/routes/modules/converter/ConverterPage';
+// ─── Domain: ID Card Printer ───────────────────────────────────
+import { IdCardPrinterPage } from '@/routes/modules/id-card-printer/IdCardPrinterPage';
 // ─── Domain: Poster Tracker ────────────────────────────────────
 import { PosterTrackerDashboardPage } from '@/routes/modules/poster-tracker/PosterTrackerDashboardPage';
 import { PosterAddPage } from '@/routes/modules/poster-tracker/PosterAddPage';
@@ -253,6 +255,8 @@ function AuthenticatedApp() {
 
                     {/* ─── Opskrift-Konverter (Pattern Converter) Module ─── */}
                     <Route path="modules/converter" element={<ConverterPage />} />
+                    {/* ─── ID Card Printer Module ─── */}
+                    <Route path="modules/id-card-printer" element={<IdCardPrinterPage />} />
                     {/* ─── Poster Tracker Module ─── */}
                     <Route path="modules/poster-tracker" element={<PosterTrackerDashboardPage />} />
                     <Route path="modules/poster-tracker/add" element={<PosterAddPage />} />
