@@ -27,10 +27,10 @@ spec:
                 name: surdej-api-config
           resources:
             requests:
-              cpu: "100m"
-              memory: "256Mi"
+              cpu: "10m"
+              memory: "128Mi"
             limits:
-              cpu: "500m"
+              cpu: "200m"
               memory: "512Mi"
       imagePullSecrets:
         - name: ghcr-secret
