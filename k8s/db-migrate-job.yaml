@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: surdej-db-migrate-${COMMIT_SHA}
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-api
     job-type: db-migrate

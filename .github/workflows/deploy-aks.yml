@@ -15,9 +15,10 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository }}
-  AKS_CLUSTER: YOUR_AKS_CLUSTER      # Replace with your AKS cluster name
-  AKS_RESOURCE_GROUP: YOUR_RESOURCE_GROUP  # Replace with your resource group
-  NAMESPACE: surdej-v1
+  AKS_CLUSTER: aks-happy-mates-sweden1
+  AKS_RESOURCE_GROUP: rg-happy-mates-sweden1
+  KEY_VAULT: kv-happy-mates-sweden1
+  NAMESPACE: surdej2026024
 
 jobs:
   deploy:
@@ -39,21 +40,24 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ inputs.image_tag || 'latest' }}" >> $GITHUB_OUTPUT
+            echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
           else
-            # Use the tag from the triggering workflow
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
             REF="${{ github.event.workflow_run.head_branch }}"
             if [[ "$REF" == v* ]]; then
               echo "tag=${REF}" >> $GITHUB_OUTPUT
             else
               echo "tag=latest" >> $GITHUB_OUTPUT
             fi
+            echo "sha=$(echo ${HEAD_SHA} | cut -c1-7)" >> $GITHUB_OUTPUT
           fi
-          echo "sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: 96bccee5-66ae-4151-bbfc-78a60d848790
+          tenant-id: 8bfad545-8650-4872-a917-20c9720b906b
+          subscription-id: 742e217b-f6e1-4094-9792-49b71fde2e02
 
       - name: Get AKS Credentials
         run: |
@@ -61,6 +65,47 @@ jobs:
             --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
             --name ${{ env.AKS_CLUSTER }} \
             --overwrite-existing
+
+      - name: Sync secrets from Key Vault
+        run: |
+          NS="${{ env.NAMESPACE }}"
+          KV="${{ env.KEY_VAULT }}"
+          PREFIX="surdej2026024"
+
+          # Read secrets from Key Vault
+          DB_URL=$(az keyvault secret show --vault-name "$KV" --name "${PREFIX}-DATABASE-URL" --query value -o tsv)
+          OAI_KEY=$(az keyvault secret show --vault-name "$KV" --name "${PREFIX}-AZURE-OPENAI-API-KEY" --query value -o tsv)
+          OAI_ENDPOINT=$(az keyvault secret show --vault-name "$KV" --name "${PREFIX}-AZURE-OPENAI-ENDPOINT" --query value -o tsv)
+          BLOB_CONN=$(az keyvault secret show --vault-name "$KV" --name "${PREFIX}-AZURE-STORAGE-CONNECTION-STRING" --query value -o tsv)
+
+          kubectl create secret generic surdej-api-secrets \
+            --namespace "$NS" \
+            --from-literal=DATABASE_URL="$DB_URL" \
+            --from-literal=AZURE_OPENAI_API_KEY="$OAI_KEY" \
+            --from-literal=AZURE_OPENAI_ENDPOINT="$OAI_ENDPOINT" \
+            --from-literal=AZURE_STORAGE_CONNECTION_STRING="$BLOB_CONN" \
+            --save-config --dry-run=client -o yaml | kubectl apply -f -
+          echo "✅ Secrets synced from Key Vault"
+
+      - name: Apply ConfigMap
+        run: |
+          NS="${{ env.NAMESPACE }}"
+          kubectl create configmap surdej-api-config \
+            --namespace "$NS" \
+            --from-literal=NODE_ENV=production \
+            --from-literal=PORT=5001 \
+            --from-literal=HOST=0.0.0.0 \
+            --from-literal=NATS_URL=nats://nats-service.${NS}.svc.cluster.local:4222 \
+            --from-literal=AI_PROVIDER=azure \
+            --from-literal=AUTH_PROVIDER=${{ vars.VITE_AUTH_PROVIDER || 'entra' }} \
+            --from-literal=AZURE_OPENAI_API_VERSION=2024-08-01-preview \
+            --from-literal=AZURE_OPENAI_MODEL_LOW=gpt-4o-mini \
+            --from-literal=AZURE_OPENAI_MODEL_MEDIUM=gpt-4o \
+            --from-literal=AZURE_OPENAI_MODEL_REASONING=o3 \
+            --from-literal=STORAGE_PROVIDER=AZURE \
+            --from-literal=STORAGE_BUCKET=surdej \
+            --save-config --dry-run=client -o yaml | kubectl apply -f -
+          echo "✅ ConfigMap applied"
 
       - name: Create namespace (if needed)
         run: |
@@ -93,7 +138,7 @@ jobs:
         run: |
           # Copy Cloudflare tunnel credentials from old namespace
           kubectl get secret cloudflare-tunnel-credentials -n api -o yaml 2>/dev/null \
-            | sed 's/namespace: api/namespace: surdej-v1/' \
+          | sed 's/namespace: api/namespace: surdej2026024/' \
             | kubectl apply -f - || echo "CF credentials already exist or source not found"
 
           kubectl apply -f k8s/infrastructure.yaml
@@ -113,6 +158,7 @@ jobs:
           export WORKER_PDF_REFINERY_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker-pdf-refinery:${TAG}"
           export WORKER_KNOWLEDGE_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker-knowledge:${TAG}"
           export WORKER_DOCUMENT_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker-document:${TAG}"
+          export MODULE_NOSQL_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker-member-nosql:${TAG}"
 
           # Apply deployment manifest
           envsubst < k8s/deployment.yaml | kubectl apply -f -
@@ -137,6 +183,7 @@ jobs:
           kubectl rollout status deployment/surdej-worker-pdf-refinery -n $NS --timeout=120s || true
           kubectl rollout status deployment/surdej-worker-knowledge -n $NS --timeout=120s || true
           kubectl rollout status deployment/surdej-worker-document -n $NS --timeout=120s || true
+          kubectl rollout status deployment/surdej-module-nosql -n $NS --timeout=120s || true
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

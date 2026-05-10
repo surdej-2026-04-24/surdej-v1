@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nats
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: nats
 spec:
@@ -54,7 +54,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nats-service
-  namespace: surdej-v1
+  namespace: surdej2026024
 spec:
   selector:
     app: nats
@@ -76,7 +76,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cloudflare-tunnel-config
-  namespace: surdej-v1
+  namespace: surdej2026024
 data:
   config.yaml: |
     tunnel: 22900e0b-8a84-4d2b-a6c8-3ba5b9cc5c5f
@@ -85,17 +85,17 @@ data:
     no-autoupdate: true
 
     ingress:
-      - hostname: api.YOUR_DOMAIN
-        service: http://surdej-api-service.surdej-v1.svc.cluster.local:5001
-      - hostname: app.YOUR_DOMAIN
-        service: http://surdej-frontend-service.surdej-v1.svc.cluster.local:80
+      - hostname: surdej2026024-api.happymates.net
+        service: http://surdej-api-service.surdej2026024.svc.cluster.local:5001
+      - hostname: surdej2026024-app.happymates.net
+        service: http://surdej-frontend-service.surdej2026024.svc.cluster.local:80
       - service: http_status:404
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflare-tunnel
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: cloudflare-tunnel
 spec:
@@ -147,7 +147,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: searxng-settings
-  namespace: surdej-v1
+  namespace: surdej2026024
 data:
   settings.yml: |
     use_default_settings: true
@@ -187,7 +187,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: searxng
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: searxng
 spec:
@@ -239,7 +239,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: searxng-service
-  namespace: surdej-v1
+  namespace: surdej2026024
 spec:
   selector:
     app: searxng

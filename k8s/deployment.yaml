@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: surdej-api
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-api
 spec:
@@ -59,7 +59,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: surdej-api-service
-  namespace: surdej-v1
+  namespace: surdej2026024
 spec:
   selector:
     app: surdej-api
@@ -76,7 +76,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: surdej-frontend
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-frontend
 spec:
@@ -116,7 +116,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: surdej-frontend-service
-  namespace: surdej-v1
+  namespace: surdej2026024
 spec:
   selector:
     app: surdej-frontend
@@ -133,7 +133,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: surdej-pdf-extractor
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-pdf-extractor
 spec:
@@ -182,7 +182,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: surdej-pdf-extractor-service
-  namespace: surdej-v1
+  namespace: surdej2026024
 spec:
   selector:
     app: surdej-pdf-extractor
@@ -199,7 +199,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: surdej-worker-pdf-refinery
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-worker-pdf-refinery
 spec:
@@ -238,7 +238,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: surdej-worker-knowledge
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-worker-knowledge
 spec:
@@ -274,7 +274,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: surdej-worker-document
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-worker-document
 spec:
@@ -314,7 +314,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: surdej-module-nosql
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-module-nosql
 spec:
@@ -343,7 +343,7 @@ spec:
             - name: MODULE_PORT
               value: "7006"
             - name: MODULE_BASE_URL
-              value: "http://surdej-module-nosql-service.surdej-v1.svc.cluster.local:7006"
+              value: "http://surdej-module-nosql-service.surdej2026024.svc.cluster.local:7006"
           resources:
             requests:
               cpu: "50m"
@@ -374,7 +374,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: surdej-module-nosql-service
-  namespace: surdej-v1
+  namespace: surdej2026024
   labels:
     app: surdej-module-nosql
 spec:
