@@ -79,6 +79,10 @@ jobs:
           admin: false
           use-kubelogin: true
 
+      - name: Create namespace (if needed)
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+
       - name: Sync secrets from Key Vault
         run: |
           NS="${{ env.NAMESPACE }}"
@@ -119,10 +123,6 @@ jobs:
             --from-literal=STORAGE_BUCKET=surdej \
             --save-config --dry-run=client -o yaml | kubectl apply -f -
           echo "✅ ConfigMap applied"
-
-      - name: Create namespace (if needed)
-        run: |
-          kubectl apply -f k8s/namespace.yaml
 
       - name: Run database migration
         run: |
