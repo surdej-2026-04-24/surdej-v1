@@ -666,7 +666,7 @@ Svar KUN med et rent JSON array (ingen markdown, ingen forklaring):
 
             return reply.send({ items });
         } catch (err) {
-            app.log.error('[AI] scan-receipt error:', err);
+            app.log.error({ err }, '[AI] scan-receipt error');
             return reply.status(500).send({ error: String(err), items: [] });
         }
     });
