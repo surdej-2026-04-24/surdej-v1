@@ -64,6 +64,13 @@ jobs:
           tenant-id: 8bfad545-8650-4872-a917-20c9720b906b
           subscription-id: 742e217b-f6e1-4094-9792-49b71fde2e02
 
+      - name: Install kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.1.4'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Get AKS Credentials
         uses: azure/aks-set-context@v4
         with:
