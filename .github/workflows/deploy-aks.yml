@@ -124,6 +124,29 @@ jobs:
             --save-config --dry-run=client -o yaml | kubectl apply -f -
           echo "✅ ConfigMap applied"
 
+      - name: Create GHCR image pull secret
+        run: |
+          NS="${{ env.NAMESPACE }}"
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --namespace="$NS" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          echo "✅ GHCR secret applied"
+
+      - name: Create Cloudflare tunnel credentials secret
+        run: |
+          NS="${{ env.NAMESPACE }}"
+          KV="${{ env.KEY_VAULT }}"
+          PREFIX="surdej2026024"
+          CF_CREDS=$(az keyvault secret show --vault-name "$KV" --name "${PREFIX}-CLOUDFLARE-TUNNEL-CREDENTIALS" --query value -o tsv)
+          kubectl create secret generic cloudflare-tunnel-credentials \
+            --namespace="$NS" \
+            --from-literal=credentials.json="$CF_CREDS" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          echo "✅ Cloudflare tunnel credentials secret applied"
+
       - name: Run database migration
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
