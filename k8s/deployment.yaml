@@ -10,6 +10,11 @@ metadata:
     app: surdej-api
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: surdej-api
@@ -81,6 +86,11 @@ metadata:
     app: surdej-frontend
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: surdej-frontend
@@ -93,6 +103,9 @@ spec:
         - name: frontend
           image: ${FRONTEND_IMAGE}
           imagePullPolicy: Always
+          env:
+            - name: API_UPSTREAM
+              value: "http://surdej-api-service:5001"
           ports:
             - containerPort: 80
               name: http

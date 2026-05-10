@@ -170,13 +170,55 @@ jobs:
             }
           echo "✅ Database migration complete"
 
+      - name: Initialize member-nosql schema
+        run: |
+          NS="${{ env.NAMESPACE }}"
+          DB_URL=$(az keyvault secret show --vault-name "${{ env.KEY_VAULT }}" --name "surdej2026024-DATABASE-URL" --query value -o tsv)
+          # Extract postgres connection parts for psql
+          PG_HOST=$(echo "$DB_URL" | sed -n 's|.*@\([^:]*\):.*|\1|p')
+          PG_PORT=$(echo "$DB_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+          PG_DB=$(echo "$DB_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')
+          PG_USER=$(echo "$DB_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+          PG_PASS=$(echo "$DB_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+          # Run schema creation via postgres pod
+          PGPASSWORD="$PG_PASS" kubectl exec -n surdej-v1 deployment/postgres -- \
+            psql -h "$PG_HOST" -U "$PG_USER" -d "$PG_DB" -c "
+              CREATE SCHEMA IF NOT EXISTS member_nosql;
+              CREATE TABLE IF NOT EXISTS member_nosql.\"NosqlCollection\" (
+                id TEXT NOT NULL PRIMARY KEY, \"tenantId\" TEXT NOT NULL, name TEXT NOT NULL,
+                slug TEXT NOT NULL, description TEXT, \"parentId\" TEXT, schema JSONB,
+                \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                \"deletedAt\" TIMESTAMP(3), \"createdBy\" TEXT, \"updatedBy\" TEXT,
+                FOREIGN KEY (\"parentId\") REFERENCES member_nosql.\"NosqlCollection\"(id)
+              );
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_nosqlcollection ON member_nosql.\"NosqlCollection\"(\"tenantId\", \"parentId\", slug);
+              CREATE INDEX IF NOT EXISTS idx_nosqlcollection_tenantid ON member_nosql.\"NosqlCollection\"(\"tenantId\");
+              CREATE INDEX IF NOT EXISTS idx_nosqlcollection_parentid ON member_nosql.\"NosqlCollection\"(\"parentId\");
+              CREATE TABLE IF NOT EXISTS member_nosql.\"NosqlDocument\" (
+                id TEXT NOT NULL PRIMARY KEY, \"tenantId\" TEXT NOT NULL, \"collectionId\" TEXT NOT NULL,
+                data JSONB NOT NULL, version INT NOT NULL DEFAULT 1,
+                \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                \"deletedAt\" TIMESTAMP(3), \"createdBy\" TEXT, \"updatedBy\" TEXT,
+                FOREIGN KEY (\"collectionId\") REFERENCES member_nosql.\"NosqlCollection\"(id)
+              );
+              CREATE INDEX IF NOT EXISTS idx_nosqldocument_tenantid ON member_nosql.\"NosqlDocument\"(\"tenantId\");
+              CREATE INDEX IF NOT EXISTS idx_nosqldocument_collectionid ON member_nosql.\"NosqlDocument\"(\"collectionId\");
+              CREATE INDEX IF NOT EXISTS idx_nosqldocument_deletedat ON member_nosql.\"NosqlDocument\"(\"deletedAt\");
+              CREATE TABLE IF NOT EXISTS member_nosql.\"NosqlDocumentVersion\" (
+                id TEXT NOT NULL PRIMARY KEY, \"documentId\" TEXT NOT NULL, version INT NOT NULL,
+                data JSONB NOT NULL, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                \"createdBy\" TEXT,
+                FOREIGN KEY (\"documentId\") REFERENCES member_nosql.\"NosqlDocument\"(id) ON DELETE CASCADE
+              );
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_nosqldocumentversion ON member_nosql.\"NosqlDocumentVersion\"(\"documentId\", version);
+              CREATE INDEX IF NOT EXISTS idx_nosqldocumentversion_documentid ON member_nosql.\"NosqlDocumentVersion\"(\"documentId\");
+            " 2>&1 || echo "⚠️ Schema init warning (may already exist)"
+          echo "✅ member-nosql schema initialized"
+
       - name: Deploy infrastructure (NATS, Cloudflare tunnel)
         run: |
-          # Copy Cloudflare tunnel credentials from old namespace
-          kubectl get secret cloudflare-tunnel-credentials -n api -o yaml 2>/dev/null \
-          | sed 's/namespace: api/namespace: surdej2026024/' \
-            | kubectl apply -f - || echo "CF credentials already exist or source not found"
-
           kubectl apply -f k8s/infrastructure.yaml
           echo "✅ Infrastructure deployed (NATS, Cloudflare Tunnel)"
 
