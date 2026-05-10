@@ -79,7 +79,7 @@ metadata:
   namespace: surdej2026024
 data:
   config.yaml: |
-    tunnel: 22900e0b-8a84-4d2b-a6c8-3ba5b9cc5c5f
+    tunnel: 0bf3a0ff-e7fa-4174-8993-cb47d14c6820
     credentials-file: /etc/cloudflared/credentials.json
     metrics: 0.0.0.0:2000
     no-autoupdate: true
