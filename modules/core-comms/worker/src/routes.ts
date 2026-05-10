@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { Prisma } from '../node_modules/.prisma/core-comms-client/index.js';
+import { type Prisma } from '../node_modules/.prisma/core-comms-client/index.js';
 import {
     SendEmailSchema,
     SendSmsSchema,

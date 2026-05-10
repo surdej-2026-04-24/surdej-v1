@@ -14,7 +14,7 @@
  *   npx tsx src/seed/seed.ts
  */
 
-import { PrismaClient, Prisma } from '../../node_modules/.prisma/member-nosql-client/index.js';
+import { PrismaClient, type Prisma } from '../../node_modules/.prisma/member-nosql-client/index.js';
 
 const prisma = new PrismaClient();
 const TENANT_ID = 'default';

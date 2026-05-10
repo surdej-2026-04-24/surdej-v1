@@ -8,6 +8,7 @@
  *
  * This runs in a pino worker thread, so it must be plain JS (.mjs).
  */
+/* global process */
 import build from 'pino-abstract-transport';
 
 // ── ANSI Colors ──

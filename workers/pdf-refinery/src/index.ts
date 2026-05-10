@@ -18,6 +18,7 @@ import { WorkerBase } from '@surdej/worker-template';
 import { createHash } from 'crypto';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { Readable } from 'stream';
+import type * as PdfjsDist from 'pdfjs-dist';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { StringCodec } from 'nats';
 import { injectTraceHeaders } from '@surdej/core/node';
@@ -361,7 +362,8 @@ worker.handle<ExtractTextPayload>('extract-text', async (job) => {
     let pdfCreationDate: string | null = null;
     try {
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-        const metaDoc = await (pdfjs as typeof import('pdfjs-dist')).getDocument({ data: new Uint8Array(pdfBuffer) }).promise;
+        // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+        const metaDoc = await (pdfjs as unknown as typeof PdfjsDist).getDocument({ data: new Uint8Array(pdfBuffer) }).promise;
         const { info } = await metaDoc.getMetadata();
         const raw = (info as Record<string, unknown>)?.['CreationDate'] as string | undefined;
         if (raw) {
