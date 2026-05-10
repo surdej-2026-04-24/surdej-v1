@@ -32,6 +32,13 @@ RUN pnpm --filter @surdej/api exec prisma generate
 # Build API
 RUN pnpm --filter @surdej/api build
 
+# Copy .mjs files that TypeScript doesn't compile
+RUN find apps/api/src -name "*.mjs" | while read f; do \
+      dest="apps/api/dist${f#apps/api/src}"; \
+      mkdir -p "$(dirname $dest)"; \
+      cp "$f" "$dest"; \
+    done
+
 # ── Stage 4: Production ──
 FROM base AS production
 ENV NODE_ENV=production
