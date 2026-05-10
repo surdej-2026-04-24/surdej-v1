@@ -32,6 +32,11 @@ jobs:
       packages: read
       id-token: write
 
+    env:
+      AZURE_CLIENT_ID: 96bccee5-66ae-4151-bbfc-78a60d848790
+      AZURE_TENANT_ID: 8bfad545-8650-4872-a917-20c9720b906b
+      AZURE_SUBSCRIPTION_ID: 742e217b-f6e1-4094-9792-49b71fde2e02
+
     steps:
       - uses: actions/checkout@v4
 
@@ -59,12 +64,18 @@ jobs:
           tenant-id: 8bfad545-8650-4872-a917-20c9720b906b
           subscription-id: 742e217b-f6e1-4094-9792-49b71fde2e02
 
+      - name: Install kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'latest'
+
       - name: Get AKS Credentials
         run: |
           az aks get-credentials \
             --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
             --name ${{ env.AKS_CLUSTER }} \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l workloadidentity
 
       - name: Sync secrets from Key Vault
         run: |
