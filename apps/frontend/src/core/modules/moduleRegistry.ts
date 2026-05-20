@@ -148,6 +148,19 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
         ],
     },
     {
+        id: 'f8e7d6c5-b4a3-9281-7065-4f3e2d1c0b9a',
+        slug: 'id-card-printer',
+        name: 'ID Kort Printer',
+        description: 'Design og print ID-kort i CR80 format med foto, QR-kode, skabeloner og brugerdefineret layout',
+        icon: 'CreditCard',
+        color: 'from-blue-500 to-indigo-600',
+        version: '0.1.0',
+        href: '/modules/id-card-printer',
+        activityItems: [
+            { id: 'editor', label: 'Kort Designer', icon: 'CreditCard', path: '' },
+        ],
+    },
+    {
         id: 'e1f2a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b',
         slug: 'mental-klarhed',
         name: 'Mental Klarhed',
